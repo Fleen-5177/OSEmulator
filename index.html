@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>v86</title>
+<title>OSEmulator</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"></script>
 <style>
@@ -87,28 +87,36 @@ h1{font-size:26px;margin:4px 4px 12px;font-weight:700}
 #keys button{flex:none;min-width:44px;border:0;border-radius:8px;padding:10px 12px;background:var(--sec);color:var(--txt);font:inherit;font-size:14px}
 #keys button:active{background:var(--btn);color:var(--btn-t)}
 #kb{position:fixed;left:-100px;top:0;width:10px;opacity:0}
-/* стилизация «Своих образов» ближе к гайдлайнам TG */
 .field-label{color:var(--hint);font-size:13px;font-weight:500;letter-spacing:.2px}
 .file-info{font-size:13px;color:var(--txt);margin-top:8px;padding:10px 12px;border-radius:10px;background:var(--bg2);overflow-wrap:anywhere}
-/* горизонтальный режим: панель клавиш справа, бар — узкой колонкой слева */
 @media (orientation:landscape){
   #run{flex-direction:row;align-items:stretch}
-  #bar{flex-direction:column;align-items:stretch;width:auto;padding:calc(var(--top) + 8px) 10px 8px;gap:6px}
-  #bar b{writing-mode:vertical-rl;flex:none;max-height:38vh;font-size:14px}
+  #keys{order:-1;flex-direction:column;overflow-y:auto;overflow-x:hidden;padding:8px;align-items:center}
   #stage{flex:1;min-width:0}
-  #keys{flex-direction:column;overflow-y:auto;overflow-x:hidden;padding:8px calc(var(--bot) + 10px) 8px 8px;align-items:center}
+  #bar{order:2;flex-direction:column;align-items:stretch;width:auto;padding:calc(var(--top) + 8px) 10px 8px;gap:6px}
+  #bar b{writing-mode:vertical-rl;flex:none;max-height:38vh;font-size:14px}
   #keys button{min-width:56px}
 }
+body[data-side="right"] #keys{order:2}
+body[data-side="right"] #bar{order:-1}
+/* настройки */
+.sens-row{display:flex;align-items:center;gap:12px;margin-top:2px}
+.sens-row input[type=range]{flex:1;min-width:0;accent-color:var(--btn)}
+.sens-val{font-size:14px;color:var(--hint);min-width:42px;text-align:right}
+.tgl-row{display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:15px;cursor:pointer;user-select:none}
+.tgl-row+.tgl-row{border-top:.5px solid var(--sep)}
+.tgl-row input{accent-color:var(--btn);width:18px;height:18px;margin:0;flex:none}
 </style>
 </head>
 <body>
 
 <!-- Каталог -->
 <section id="list" class="view on">
-  <h1>OSEmulator (beta 1.3)</h1>
+  <h1>OSEmulator</h1>
   <div class="tabs">
     <button class="tab active" id="tabCatalog" type="button">Каталог ОС</button>
     <button class="tab" id="tabCustom" type="button">Свои образы</button>
+    <button class="tab" id="tabSettings" type="button">Настройки</button>
   </div>
   <div id="catalogPanel">
     <input id="q" class="search" type="search" placeholder="Поиск">
@@ -140,6 +148,32 @@ h1{font-size:26px;margin:4px 4px 12px;font-weight:700}
       <div class="custom-note">Образ должен быть совместим с x86 и BIOS-эмуляцией v86. Большие файлы целиком загружаются в память браузера, поэтому на телефоне лучше начинать с небольших образов. 64-битные ОС не поддерживаются.</div>
     </div>
   </div>
+  <div id="settingsPanel" hidden>
+    <div class="custom-card">
+      <h2>Настройки</h2>
+      <p>Сохраняются автоматически на этом устройстве.</p>
+      <label class="field-label" for="setSens">Чувствительность мыши</label>
+      <div class="sens-row">
+        <input id="setSens" type="range" min="0.5" max="3" step="0.1">
+        <span id="setSensVal" class="sens-val">1.6×</span>
+      </div>
+      <label class="field-label" for="setScale">Масштаб экрана</label>
+      <select id="setScale" class="select">
+        <option value="fit">По ширине экрана</option>
+        <option value="1">Оригинал (1:1)</option>
+        <option value="1.5">Увеличить (1.5×)</option>
+        <option value="2">Увеличить (2×)</option>
+      </select>
+      <label class="field-label" for="setSide">Панель кнопок в горизонтали</label>
+      <select id="setSide" class="select">
+        <option value="left">Слева</option>
+        <option value="right">Справа</option>
+      </select>
+      <label class="field-label">Кнопки управления в эмуляторе</label>
+      <div id="setKeys"></div>
+      <button class="btn sec" id="setReset" type="button">Сбросить настройки</button>
+    </div>
+  </div>
 </section>
 
 <!-- Эмулятор -->
@@ -166,16 +200,16 @@ h1{font-size:26px;margin:4px 4px 12px;font-weight:700}
 </div>
 
 <script>
-/* НАСТРОЙКИ */
-const BOT = "osemuapp";
-const APP = "OSEmulator";
+/* ============ НАСТРОЙКИ ============ */
+const BOT = "osemuapp";          // username бота без @
+const APP = "osemu";               // short name мини-аппа из BotFather
 const CDN = {
   wasm:   "https://cdn.jsdelivr.net/npm/v86@latest/build/v86.wasm",
   bios:   "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin",
   vga:    "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin",
   images: "https://raw.githubusercontent.com/copy/images/master/",
 };
-// образээээ 
+// образы
 const IMG = {
   kolibri: "https://raw.githubusercontent.com/copy/images/master/kolibri.img",
   freedos: "https://raw.githubusercontent.com/copy/images/master/freedos722.img",
@@ -186,7 +220,7 @@ const IMG = {
   windows101: "https://raw.githubusercontent.com/copy/images/master/windows101.img",
 };
 
-/* РЕЕСТР ОС 
+/* ============ РЕЕСТР ОС ============
    Поля disk-образов (fda/hda/cdrom/bzimage) — это 1-в-1 опции конструктора V86.
    Новые ОС копируй из массива профилей в src/browser/main.js репозитория copy/v86. */
 const OS = [
@@ -245,14 +279,16 @@ function renderList(filter=""){
 $("q").oninput = e => renderList(e.target.value);
 
 function selectTab(which){
-  const custom = which === "custom";
-  $("catalogPanel").hidden = custom;
-  $("customPanel").hidden = !custom;
-  $("tabCatalog").classList.toggle("active", !custom);
-  $("tabCustom").classList.toggle("active", custom);
+  $("catalogPanel").hidden = which !== "catalog";
+  $("customPanel").hidden  = which !== "custom";
+  $("settingsPanel").hidden = which !== "settings";
+  $("tabCatalog").classList.toggle("active", which === "catalog");
+  $("tabCustom").classList.toggle("active", which === "custom");
+  $("tabSettings").classList.toggle("active", which === "settings");
 }
 $("tabCatalog").onclick = () => selectTab("catalog");
 $("tabCustom").onclick = () => selectTab("custom");
+$("tabSettings").onclick = () => selectTab("settings");
 
 $("pickFileBtn").onclick = () => $("customFile").click();
 let customImageFile = null;
@@ -339,7 +375,7 @@ function launch(os){
     $("loadTxt").textContent = "Не удалось загрузить образ. Проверь формат файла и совместимость с v86.";
     tg?.HapticFeedback?.notificationOccurred("error");
   });
-  emu.add_listener("emulator-started", ()=>{ $("load").style.display="none"; tg?.HapticFeedback?.notificationOccurred("success"); });
+  emu.add_listener("emulator-started", ()=>{ $("load").style.display="none"; applyScale(); tg?.HapticFeedback?.notificationOccurred("success"); });
   setupTouchpad();
   history.replaceState(null,"","#"+os.id);
 }
@@ -372,7 +408,7 @@ function setupTouchpad(){
   };
   st.ontouchmove = e=>{
     const t = e.touches[0]; if(!last || !start) return;
-    const dx=(t.clientX-last.clientX)*1.6, dy=(t.clientY-last.clientY)*1.6;
+    const dx=(t.clientX-last.clientX)*settings.sens, dy=(t.clientY-last.clientY)*settings.sens;
     emu.bus.send("mouse-delta",[dx,-dy]);
     if(Math.abs(t.clientX-start.x) + Math.abs(t.clientY-start.y) > 14) moved = true;
     last = t; e.preventDefault();
@@ -393,23 +429,66 @@ function mouseClick(btn){
 }
 
 /* ---- экранные клавиши ---- */
+/* ============ НАСТРОЙКИ (хранятся локально) ============ */
+const SETTINGS_KEY = "v86_tg_settings";
+const DEFAULT_SETTINGS = { sens: 1.6, scale: "fit", side: "left", keys: {} };
+let settings = { ...DEFAULT_SETTINGS };
+try{ settings = { ...DEFAULT_SETTINGS, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}) }; }catch{}
+function saveSettings(){ try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }catch{} }
+
 const key = (make, ext=false) => ext ? [0xE0,make,0xE0,make|0x80] : [make,make|0x80];
-const KEYS = [
-  ["⌨️", ()=>$("kb").focus()],
-  ["🖱 ЛКМ", ()=>mouseClick([true,false,false])], ["🖱 ПКМ", ()=>mouseClick([false,false,true])],
-  ["Esc", ()=>key(0x01)], ["Tab", ()=>key(0x0F)], ["Enter", ()=>key(0x1C)],
-  ["←", ()=>key(0x4B,true)], ["↑", ()=>key(0x48,true)], ["↓", ()=>key(0x50,true)], ["→", ()=>key(0x4D,true)],
-  ["Ctrl+Alt+Del", ()=>[0x1D,0x38,0xE0,0x53,0xE0,0xD3,0xB8,0x9D]],
-  ["Alt+Tab", ()=>[0x38,0x0F,0x8F,0xB8]],
-  ["F1", ()=>key(0x3B)], ["F2", ()=>key(0x3C)], ["F10", ()=>key(0x44)],
+const KEYDEFS = [
+  ["kbd",   "⌨️ Клавиатура",     ()=>$("kb").focus()],
+  ["lmb",   "🖱 ЛКМ",             ()=>mouseClick([true,false,false])],
+  ["rmb",   "🖱 ПКМ",             ()=>mouseClick([false,false,true])],
+  ["esc",   "Esc",               ()=>key(0x01)],
+  ["tab",   "Tab",               ()=>key(0x0F)],
+  ["enter", "Enter",             ()=>key(0x1C)],
+  ["left",  "← Стрелка",         ()=>key(0x4B,true)],
+  ["up",    "↑ Стрелка",         ()=>key(0x48,true)],
+  ["down",  "↓ Стрелка",         ()=>key(0x50,true)],
+  ["right", "→ Стрелка",         ()=>key(0x4D,true)],
+  ["cad",   "Ctrl+Alt+Del",      ()=>[0x1D,0x38,0xE0,0x53,0xE0,0xD3,0xB8,0x9D]],
+  ["altab", "Alt+Tab",           ()=>[0x38,0x0F,0x8F,0xB8]],
+  ["f1",    "F1",                ()=>key(0x3B)],
+  ["f2",    "F2",                ()=>key(0x3C)],
+  ["f10",   "F10",               ()=>key(0x44)],
 ];
-$("keys").innerHTML = KEYS.map((k,i)=>`<button data-i="${i}">${k[0]}</button>`).join("");
-$("keys").onclick = e=>{
-  const b=e.target.closest("button"); if(!b||!emu) return;
-  haptic("light");
-  const r = KEYS[b.dataset.i][1]();
-  if(Array.isArray(r)) emu.keyboard_send_scancodes(r);
+function renderKeys(){
+  const vis = KEYDEFS.filter(k => settings.keys[k[0]] !== false);
+  $("keys").innerHTML = vis.map((k,i)=>`<button data-i="${i}">${k[1].replace(/^⌨️ |^🖱 /,"")}</button>`).join("");
+  $("keys").onclick = e=>{
+    const b=e.target.closest("button"); if(!b||!emu) return;
+    haptic("light");
+    const r = vis[b.dataset.i][2]();
+    if(Array.isArray(r)) emu.keyboard_send_scancodes(r);
+  };
+}
+function applyScale(){
+  const cv = $("screen").querySelector("canvas"); if(!cv) return;
+  if(settings.scale === "fit"){ cv.style.width = "100%"; }
+  else { cv.style.width = (cv.width * parseFloat(settings.scale)) + "px"; }
+  cv.style.height = "auto";
+}
+function applySettingsUI(){
+  $("setSens").value = settings.sens;
+  $("setSensVal").textContent = (+settings.sens).toFixed(1) + "×";
+  $("setScale").value = settings.scale;
+  $("setSide").value = settings.side;
+  document.body.dataset.side = settings.side;
+  $("setKeys").innerHTML = KEYDEFS.map(k=>`
+    <label class="tgl-row"><input type="checkbox" data-k="${k[0]}" ${settings.keys[k[0]] !== false ? "checked" : ""}>${k[1]}</label>`).join("");
+  renderKeys(); applyScale();
+}
+$("setSens").oninput = e => { settings.sens = +e.target.value; $("setSensVal").textContent = settings.sens.toFixed(1)+"×"; saveSettings(); };
+$("setScale").onchange = e => { settings.scale = e.target.value; saveSettings(); applyScale(); };
+$("setSide").onchange = e => { settings.side = e.target.value; document.body.dataset.side = settings.side; saveSettings(); };
+$("setKeys").onchange = e => {
+  const c = e.target.closest("input[data-k]"); if(!c) return;
+  settings.keys[c.dataset.k] = c.checked; saveSettings(); renderKeys();
 };
+$("setReset").onclick = () => { settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)); saveSettings(); applySettingsUI(); haptic("medium"); };
+applySettingsUI();
 $("kb").addEventListener("input", e=>{
   if(!emu) return;
   if(e.inputType==="deleteContentBackward") emu.keyboard_send_scancodes(key(0x0E));
