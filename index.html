@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>v86</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"></script>
+<style>
+:root{
+  --bg:var(--tg-theme-bg-color,#fff);
+  --bg2:var(--tg-theme-secondary-bg-color,#efeff3);
+  --sec:var(--tg-theme-section-bg-color,#fff);
+  --txt:var(--tg-theme-text-color,#000);
+  --hint:var(--tg-theme-hint-color,#8a8a8e);
+  --link:var(--tg-theme-link-color,#007aff);
+  --btn:var(--tg-theme-button-color,#3390ec);
+  --btn-t:var(--tg-theme-button-text-color,#fff);
+  --sh:var(--tg-theme-section-header-text-color,#6d6d72);
+  --sep:color-mix(in srgb,var(--hint) 25%,transparent);
+  --top:max(var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px),env(safe-area-inset-top,0px));
+  --bot:max(var(--tg-safe-area-inset-bottom,0px),env(safe-area-inset-bottom,0px));
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg2);color:var(--txt);
+  font:16px/1.3 -apple-system,BlinkMacSystemFont,"Roboto","Segoe UI",sans-serif;overscroll-behavior:none}
+.view{display:none;height:100%}
+.view.on{display:flex;flex-direction:column}
+
+/* список */
+#list{overflow-y:auto;padding:calc(var(--top) + 12px) 16px calc(var(--bot) + 24px)}
+h1{font-size:26px;margin:4px 4px 12px;font-weight:700}
+.search{width:100%;border:0;border-radius:10px;padding:10px 12px;font:inherit;color:var(--txt);
+  background:color-mix(in srgb,var(--hint) 16%,transparent);outline:none;margin-bottom:8px}
+.hdr{font-size:13px;color:var(--sh);margin:20px 16px 6px}
+.group{background:var(--sec);border-radius:12px;overflow:hidden}
+.cell{display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;position:relative}
+.cell:active{background:color-mix(in srgb,var(--hint) 15%,transparent)}
+.cell+.cell::before{content:"";position:absolute;top:0;left:66px;right:0;height:.5px;background:var(--sep)}
+.ico{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;font-size:22px;flex:none}
+.cell .t{flex:1;min-width:0}
+.cell .n{font-weight:500}
+.cell .d{font-size:14px;color:var(--hint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell .s{font-size:14px;color:var(--hint);flex:none}
+.empty{text-align:center;color:var(--hint);padding:40px 0}
+
+/* нижний лист */
+#sheetBg{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;z-index:5}
+#sheet{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-radius:16px 16px 0 0;
+  padding:12px 16px calc(var(--bot) + 16px);z-index:6;transform:translateY(100%);transition:transform .25s ease}
+#sheet.on{transform:none}
+#sheet .grab{width:36px;height:4px;border-radius:2px;background:var(--sep);margin:0 auto 14px}
+#sheet .ico{width:56px;height:56px;font-size:30px;border-radius:14px;margin-bottom:10px}
+#sheet h2{margin:0 0 4px;font-size:20px}
+#sheet p{margin:0 0 14px;color:var(--hint)}
+.meta{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.chip{font-size:13px;padding:4px 10px;border-radius:12px;background:var(--bg2);color:var(--hint)}
+.btn{display:block;width:100%;border:0;border-radius:12px;padding:14px;font:inherit;font-weight:600;
+  background:var(--btn);color:var(--btn-t);margin-bottom:8px;cursor:pointer}
+.btn.sec{background:color-mix(in srgb,var(--btn) 14%,transparent);color:var(--link)}
+
+/* эмулятор */
+#run{background:#000;padding-top:var(--top)}
+#bar{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg2);color:var(--txt);flex:none}
+#bar b{flex:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#bar button{border:0;border-radius:8px;padding:6px 10px;background:var(--sec);color:var(--link);font:inherit;font-size:14px}
+#stage{flex:1;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none}
+#screen{width:100%}
+#screen canvas{width:100%!important;height:auto!important;image-rendering:pixelated;display:block}
+#screen>div{white-space:pre;font:14px/14px monospace;color:#ccc}
+#load{position:absolute;inset:0;display:grid;place-content:center;gap:12px;text-align:center;
+  background:var(--bg2);color:var(--hint);z-index:2}
+#load .bar{width:200px;height:4px;border-radius:2px;background:var(--sep);overflow:hidden}
+#load .bar i{display:block;height:100%;width:0;background:var(--btn);transition:width .2s}
+#keys{display:flex;gap:6px;padding:8px 10px calc(var(--bot) + 8px);background:var(--bg2);overflow-x:auto;flex:none}
+#keys button{flex:none;min-width:44px;border:0;border-radius:8px;padding:10px 12px;background:var(--sec);color:var(--txt);font:inherit;font-size:14px}
+#keys button:active{background:var(--btn);color:var(--btn-t)}
+#kb{position:fixed;left:-100px;top:0;width:10px;opacity:0}
+</style>
+</head>
+<body>
+
+<!-- Каталог -->
+<section id="list" class="view on">
+  <h1>Эмулятор ПК</h1>
+  <input id="q" class="search" type="search" placeholder="Поиск">
+  <div id="groups"></div>
+</section>
+
+<!-- Эмулятор -->
+<section id="run" class="view">
+  <div id="bar"><b id="title"></b><button id="bShare">Поделиться</button><button id="bReset">Сброс</button></div>
+  <div id="stage">
+    <div id="screen"><div></div><canvas></canvas></div>
+    <div id="load"><div id="loadTxt">Запуск…</div><div class="bar"><i id="loadBar"></i></div></div>
+  </div>
+  <div id="keys"></div>
+  <input id="kb" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+</section>
+
+<!-- Лист с описанием -->
+<div id="sheetBg"></div>
+<div id="sheet">
+  <div class="grab"></div>
+  <div class="ico" id="sIco"></div>
+  <h2 id="sName"></h2>
+  <p id="sDesc"></p>
+  <div class="meta" id="sMeta"></div>
+  <button class="btn" id="sGo">Запустить</button>
+  <button class="btn sec" id="sShare">Поделиться ссылкой</button>
+</div>
+
+<script>
+/* ============ НАСТРОЙКИ ============ */
+const BOT = "your_bot";          // username бота без @
+const APP = "v86";               // short name мини-аппа из BotFather
+const CDN = {
+  wasm:   "https://cdn.jsdelivr.net/npm/v86@latest/build/v86.wasm",
+  bios:   "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin",
+  vga:    "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin",
+  images: "https://i.copy.sh/",   // тот же хост, откуда берёт образы copy.sh
+};
+const I = CDN.images;
+
+/* ============ РЕЕСТР ОС ============
+   Поля disk-образов (fda/hda/cdrom/bzimage) — это 1-в-1 опции конструктора V86.
+   Новые ОС копируй из массива профилей в src/browser/main.js репозитория copy/v86. */
+const OS = [
+  {id:"kolibri", cat:"Лёгкие", name:"KolibriOS", emoji:"🐦", color:"#34c759", size:"1.3 МБ",
+   desc:"Графическая ОС на ассемблере: приложения, игры, демо.", mem:64, fda:{url:I+"kolibri.img"}},
+  {id:"freedos", cat:"Лёгкие", name:"FreeDOS", emoji:"💾", color:"#8e8e93", size:"0.7 МБ",
+   desc:"Современный свободный DOS.", mem:32, fda:{url:I+"freedos722.img"}},
+  {id:"oberon", cat:"Лёгкие", name:"Oberon", emoji:"🧬", color:"#af52de", size:"1.6 МБ",
+   desc:"Native Oberon 2.3.6 — ОС Никлауса Вирта.", mem:64, hda:{url:I+"oberon.img", async:true}},
+  {id:"buildroot", cat:"Linux", name:"Buildroot", emoji:"🧰", color:"#ff9500", size:"5 МБ",
+   desc:"Минимальный Linux с консолью.", mem:128,
+   bzimage:{url:I+"buildroot-bzimage68.bin"}, cmdline:"tsc=reliable mitigations=off random.trust_cpu=on"},
+  {id:"linux", cat:"Linux", name:"Linux (CD)", emoji:"🐧", color:"#5856d6", size:"~10 МБ",
+   desc:"Компактный Linux, грузится с образа диска.", mem:128, cdrom:{url:I+"linux4.iso", async:true}},
+  {id:"win1", cat:"Windows", name:"Windows 1.01", emoji:"🪟", color:"#007aff", size:"0.7 МБ",
+   desc:"Первая версия Windows (1985).", mem:32, fda:{url:I+"windows101.img"}},
+];
+
+/* ============ TELEGRAM ============ */
+const tg = window.Telegram?.WebApp;
+const inTG = !!(tg && tg.initData);
+const $ = id => document.getElementById(id);
+const haptic = (t="light") => tg?.HapticFeedback?.impactOccurred(t);
+
+if (tg){
+  tg.ready(); tg.expand();
+  try{ tg.setHeaderColor("secondary_bg_color"); tg.setBackgroundColor("secondary_bg_color"); }catch{}
+  try{ tg.disableVerticalSwipes(); }catch{}
+}
+
+const userId = tg?.initDataUnsafe?.user?.id;
+const refLink = id => `https://t.me/${BOT}/${APP}?startapp=${id}` + (userId ? `-${userId}` : "");
+function share(os){
+  const url = `https://t.me/share/url?url=${encodeURIComponent(refLink(os.id))}&text=${encodeURIComponent(`${os.name} прямо в Telegram`)}`;
+  tg ? tg.openTelegramLink(url) : window.open(url, "_blank");
+}
+
+/* ============ КАТАЛОГ ============ */
+function renderList(filter=""){
+  const f = filter.trim().toLowerCase();
+  const cats = [...new Set(OS.map(o=>o.cat))];
+  let html = "";
+  for (const c of cats){
+    const items = OS.filter(o=>o.cat===c && (o.name+o.desc).toLowerCase().includes(f));
+    if(!items.length) continue;
+    html += `<div class="hdr">${c}</div><div class="group">` + items.map(o=>`
+      <div class="cell" data-id="${o.id}">
+        <div class="ico" style="background:${o.color}22">${o.emoji}</div>
+        <div class="t"><div class="n">${o.name}</div><div class="d">${o.desc}</div></div>
+        <div class="s">${o.size}</div>
+      </div>`).join("") + `</div>`;
+  }
+  $("groups").innerHTML = html || `<div class="empty">Ничего не найдено</div>`;
+}
+$("q").oninput = e => renderList(e.target.value);
+$("groups").onclick = e => {
+  const c = e.target.closest(".cell"); if(!c) return;
+  haptic(); openSheet(OS.find(o=>o.id===c.dataset.id));
+};
+
+/* ============ ЛИСТ ============ */
+let cur = null, mainHandler = null;
+function openSheet(os){
+  cur = os;
+  $("sIco").textContent = os.emoji; $("sIco").style.background = os.color+"22";
+  $("sName").textContent = os.name; $("sDesc").textContent = os.desc;
+  $("sMeta").innerHTML = `<span class="chip">${os.size}</span><span class="chip">${os.mem} МБ RAM</span>`;
+  $("sheetBg").style.display = "block";
+  requestAnimationFrame(()=>$("sheet").classList.add("on"));
+  if (inTG){
+    $("sGo").style.display = "none";
+    mainHandler = ()=>launch(os);
+    tg.MainButton.setText(`Запустить ${os.name}`).show().onClick(mainHandler);
+  } else $("sGo").style.display = "block";
+}
+function closeSheet(){
+  $("sheet").classList.remove("on");
+  setTimeout(()=>$("sheetBg").style.display="none",250);
+  if (inTG && mainHandler){ tg.MainButton.offClick(mainHandler); tg.MainButton.hide(); mainHandler=null; }
+}
+$("sheetBg").onclick = closeSheet;
+$("sGo").onclick = ()=>launch(cur);
+$("sShare").onclick = ()=>share(cur);
+
+/* ============ ЭМУЛЯТОР ============ */
+let emu = null;
+function show(view){ document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on",v.id===view)); }
+
+function launch(os){
+  closeSheet(); haptic("medium");
+  show("run"); $("title").textContent = os.name;
+  $("load").style.display = "grid"; $("loadBar").style.width = "0"; $("loadTxt").textContent = "Загрузка…";
+  if (tg){
+    tg.BackButton.show(); tg.BackButton.onClick(exit);
+    try{ tg.requestFullscreen(); }catch{}
+    try{ tg.enableClosingConfirmation(); }catch{}
+  }
+  const opts = {
+    wasm_path: CDN.wasm,
+    bios: {url: CDN.bios}, vga_bios: {url: CDN.vga},
+    screen_container: $("screen"),
+    memory_size: os.mem*1024*1024, vga_memory_size: 8*1024*1024,
+    autostart: true,
+  };
+  for (const k of ["fda","hda","cdrom","bzimage","cmdline","initrd"]) if(os[k]) opts[k]=os[k];
+  emu = new V86(opts);
+  emu.add_listener("download-progress", e=>{
+    if(e.total) $("loadBar").style.width = Math.round(e.loaded/e.total*100)+"%";
+    $("loadTxt").textContent = `Загрузка ${e.file_index+1}/${e.file_count}`;
+  });
+  emu.add_listener("download-error", ()=>{
+    $("loadTxt").textContent = "Не удалось загрузить образ. Проверь сеть и попробуй снова.";
+    tg?.HapticFeedback?.notificationOccurred("error");
+  });
+  emu.add_listener("emulator-started", ()=>{ $("load").style.display="none"; tg?.HapticFeedback?.notificationOccurred("success"); });
+  setupTouchpad();
+  history.replaceState(null,"","#"+os.id);
+}
+function exit(){
+  try{ emu?.destroy(); }catch{}
+  emu = null;
+  $("screen").innerHTML = "<div></div><canvas></canvas>";
+  show("list");
+  if (tg){
+    tg.BackButton.hide(); tg.BackButton.offClick(exit);
+    try{ tg.exitFullscreen(); }catch{}
+    try{ tg.disableClosingConfirmation(); }catch{}
+  }
+}
+$("bReset").onclick = ()=>{ haptic("rigid"); emu?.restart(); };
+$("bShare").onclick = ()=>share(cur);
+if(!inTG){ addEventListener("keydown",e=>{ if(e.key==="Escape" && $("run").classList.contains("on")) exit(); }); }
+
+/* ---- тачпад: касание = перемещение, тап = ЛКМ, два пальца = ПКМ ---- */
+function setupTouchpad(){
+  const st = $("stage"); let last=null, moved=false, fingers=0, t0=0;
+  emu.add_listener("emulator-ready", ()=>{ try{ emu.mouse_set_enabled(false); }catch{} });
+  st.ontouchstart = e=>{ fingers=Math.max(fingers,e.touches.length); last=e.touches[0]; moved=false; t0=Date.now(); e.preventDefault(); };
+  st.ontouchmove = e=>{
+    const t=e.touches[0]; if(!last) return;
+    const dx=(t.clientX-last.clientX)*1.6, dy=(t.clientY-last.clientY)*1.6;
+    if(Math.abs(dx)+Math.abs(dy)>0) moved=true;
+    emu.bus.send("mouse-delta",[dx,-dy]); last=t; e.preventDefault();
+  };
+  st.ontouchend = e=>{
+    if(e.touches.length) return;
+    if(!moved && Date.now()-t0<300){
+      const btn = fingers>1 ? [false,false,true] : [true,false,false];
+      emu.bus.send("mouse-click",btn); setTimeout(()=>emu.bus.send("mouse-click",[false,false,false]),50);
+      haptic("light");
+    }
+    fingers=0; last=null;
+  };
+}
+
+/* ---- экранные клавиши ---- */
+const key = (make, ext=false) => ext ? [0xE0,make,0xE0,make|0x80] : [make,make|0x80];
+const KEYS = [
+  ["⌨️", ()=>$("kb").focus()],
+  ["Esc", ()=>key(0x01)], ["Tab", ()=>key(0x0F)], ["Enter", ()=>key(0x1C)],
+  ["←", ()=>key(0x4B,true)], ["↑", ()=>key(0x48,true)], ["↓", ()=>key(0x50,true)], ["→", ()=>key(0x4D,true)],
+  ["Ctrl+Alt+Del", ()=>[0x1D,0x38,0xE0,0x53,0xE0,0xD3,0xB8,0x9D]],
+  ["Alt+Tab", ()=>[0x38,0x0F,0x8F,0xB8]],
+  ["F1", ()=>key(0x3B)], ["F2", ()=>key(0x3C)], ["F10", ()=>key(0x44)],
+];
+$("keys").innerHTML = KEYS.map((k,i)=>`<button data-i="${i}">${k[0]}</button>`).join("");
+$("keys").onclick = e=>{
+  const b=e.target.closest("button"); if(!b||!emu) return;
+  haptic("light");
+  const r = KEYS[b.dataset.i][1]();
+  if(Array.isArray(r)) emu.keyboard_send_scancodes(r);
+};
+$("kb").addEventListener("input", e=>{
+  if(!emu) return;
+  if(e.inputType==="deleteContentBackward") emu.keyboard_send_scancodes(key(0x0E));
+  else if(e.inputType==="insertLineBreak") emu.keyboard_send_scancodes(key(0x1C));
+  else if(e.data) emu.keyboard_send_text(e.data);
+  e.target.value="";
+});
+$("kb").addEventListener("keydown", e=>{
+  if(e.key==="Enter"){ emu?.keyboard_send_scancodes(key(0x1C)); e.preventDefault(); }
+});
+
+/* ============ DEEP LINK ============ */
+renderList();
+const sp = tg?.initDataUnsafe?.start_param || location.hash.slice(1) || new URLSearchParams(location.search).get("os");
+if (sp){
+  const [id, ref] = sp.split("-");
+  const os = OS.find(o=>o.id===id);
+  if (os){
+    // if(ref) fetch("/api/ref",{method:"POST",body:JSON.stringify({ref,initData:tg.initData})}); // учёт рефералов на своём бэкенде
+    cur = os; openSheet(os);
+  }
+}
+</script>
+</body>
+</html>
