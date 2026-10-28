@@ -29,6 +29,17 @@ html,body{margin:0;height:100%;background:var(--bg2);color:var(--txt);
 
 /* список */
 #list{overflow-y:auto;padding:calc(var(--top) + 12px) 16px calc(var(--bot) + 24px)}
+.tabs{display:flex;gap:6px;padding:4px;background:color-mix(in srgb,var(--hint) 12%,transparent);border-radius:12px;margin:0 0 12px}
+.tab{flex:1;border:0;border-radius:9px;padding:10px 8px;background:transparent;color:var(--txt);font:inherit;font-size:14px}
+.tab.active{background:var(--sec);font-weight:600;box-shadow:0 1px 3px #0001}
+.custom-card{background:var(--sec);border-radius:14px;padding:16px}
+.custom-card h2{font-size:20px;margin:0 0 8px}
+.custom-card p{font-size:14px;color:var(--hint);margin:0 0 18px}
+.field-label{display:block;font-size:14px;font-weight:600;margin:14px 0 7px}
+.file-input,.select{display:block;width:100%;min-width:0;border:1px solid var(--sep);border-radius:10px;padding:11px;background:var(--bg2);color:var(--txt);font:inherit}
+.file-info{font-size:13px;color:var(--hint);margin-top:7px;overflow-wrap:anywhere}
+.custom-note{font-size:13px;line-height:1.45;color:var(--hint);margin-top:12px}
+#customLaunch:disabled{opacity:.45}
 h1{font-size:26px;margin:4px 4px 12px;font-weight:700}
 .search{width:100%;border:0;border-radius:10px;padding:10px 12px;font:inherit;color:var(--txt);
   background:color-mix(in srgb,var(--hint) 16%,transparent);outline:none;margin-bottom:8px}
@@ -83,8 +94,39 @@ h1{font-size:26px;margin:4px 4px 12px;font-weight:700}
 <!-- Каталог -->
 <section id="list" class="view on">
   <h1>Эмулятор ПК</h1>
-  <input id="q" class="search" type="search" placeholder="Поиск">
-  <div id="groups"></div>
+  <div class="tabs">
+    <button class="tab active" id="tabCatalog" type="button">Каталог ОС</button>
+    <button class="tab" id="tabCustom" type="button">Свои образы</button>
+  </div>
+  <div id="catalogPanel">
+    <input id="q" class="search" type="search" placeholder="Поиск">
+    <div id="groups"></div>
+  </div>
+  <div id="customPanel" hidden>
+    <div class="custom-card">
+      <h2>Запустить свой образ</h2>
+      <p>Выбери локальный файл. Он обрабатывается в браузере и не отправляется на сервер.</p>
+      <label class="field-label" for="customFile">Файл образа (.img, .ima, .dsk, .iso, .bin)</label>
+      <input id="customFile" class="file-input" type="file" accept=".img,.ima,.dsk,.iso,.bin,.raw,.vfd,application/octet-stream">
+      <div id="customFileInfo" class="file-info">Файл не выбран</div>
+      <label class="field-label" for="customDrive">Тип устройства</label>
+      <select id="customDrive" class="select">
+        <option value="hda">Жёсткий диск (IMG/raw)</option>
+        <option value="cdrom">CD/DVD (ISO)</option>
+        <option value="fda">Дискета (IMG/IMA/DSK)</option>
+      </select>
+      <label class="field-label" for="customRam">Оперативная память</label>
+      <select id="customRam" class="select">
+        <option value="32">32 МБ</option>
+        <option value="64">64 МБ</option>
+        <option value="128" selected>128 МБ</option>
+        <option value="256">256 МБ</option>
+        <option value="512">512 МБ</option>
+      </select>
+      <button class="btn" id="customLaunch" type="button" disabled>Запустить образ</button>
+      <div class="custom-note">Образ должен быть совместим с x86 и BIOS-эмуляцией v86. Большие файлы целиком загружаются в память браузера, поэтому на телефоне лучше начинать с небольших образов. Обычные 64-битные ОС не поддерживаются.</div>
+    </div>
+  </div>
 </section>
 
 <!-- Эмулятор -->
@@ -118,27 +160,37 @@ const CDN = {
   wasm:   "https://cdn.jsdelivr.net/npm/v86@latest/build/v86.wasm",
   bios:   "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin",
   vga:    "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin",
-  images: "https://i.copy.sh/",   // тот же хост, откуда берёт образы copy.sh
+  images: "https://raw.githubusercontent.com/copy/images/master/",
 };
-const I = CDN.images;
+// Прямые публичные файлы GitHub. Загружаются целиком, поэтому Range не требуется.
+const IMG = {
+  kolibri: "https://raw.githubusercontent.com/copy/images/master/kolibri.img",
+  freedos: "https://raw.githubusercontent.com/copy/images/master/freedos722.img",
+  msdos: "https://raw.githubusercontent.com/copy/images/master/msdos.img",
+  linux: "https://raw.githubusercontent.com/copy/images/master/linux.iso",
+  openbsd: "https://raw.githubusercontent.com/copy/images/master/openbsd.img",
+  os8: "https://raw.githubusercontent.com/copy/images/master/os8.dsk",
+  windows101: "https://raw.githubusercontent.com/copy/images/master/windows101.img",
+};
 
 /* ============ РЕЕСТР ОС ============
    Поля disk-образов (fda/hda/cdrom/bzimage) — это 1-в-1 опции конструктора V86.
    Новые ОС копируй из массива профилей в src/browser/main.js репозитория copy/v86. */
 const OS = [
   {id:"kolibri", cat:"Лёгкие", name:"KolibriOS", emoji:"🐦", color:"#34c759", size:"1.3 МБ",
-   desc:"Графическая ОС на ассемблере: приложения, игры, демо.", mem:64, fda:{url:I+"kolibri.img"}},
+   desc:"Графическая ОС на ассемблере: приложения, игры, демо.", mem:64, fda:{url:IMG.kolibri}},
   {id:"freedos", cat:"Лёгкие", name:"FreeDOS", emoji:"💾", color:"#8e8e93", size:"0.7 МБ",
-   desc:"Современный свободный DOS.", mem:32, fda:{url:I+"freedos722.img"}},
-  {id:"oberon", cat:"Лёгкие", name:"Oberon", emoji:"🧬", color:"#af52de", size:"1.6 МБ",
-   desc:"Native Oberon 2.3.6 — ОС Никлауса Вирта.", mem:64, hda:{url:I+"oberon.img", async:true}},
-  {id:"buildroot", cat:"Linux", name:"Buildroot", emoji:"🧰", color:"#ff9500", size:"5 МБ",
-   desc:"Минимальный Linux с консолью.", mem:128,
-   bzimage:{url:I+"buildroot-bzimage68.bin"}, cmdline:"tsc=reliable mitigations=off random.trust_cpu=on"},
-  {id:"linux", cat:"Linux", name:"Linux (CD)", emoji:"🐧", color:"#5856d6", size:"~10 МБ",
-   desc:"Компактный Linux, грузится с образа диска.", mem:128, cdrom:{url:I+"linux4.iso", async:true}},
+   desc:"Свободная DOS-совместимая ОС.", mem:32, fda:{url:IMG.freedos}},
+  {id:"msdos", cat:"Лёгкие", name:"MS-DOS", emoji:"▰", color:"#636366", size:"образ диска",
+   desc:"Классическая DOS. Совместимость зависит от образа.", mem:32, hda:{url:IMG.msdos}},
+  {id:"linux", cat:"Linux", name:"Damn Small Linux", emoji:"🐧", color:"#5856d6", size:"ISO",
+   desc:"Компактный Linux для запуска в браузерном x86-эмуляторе.", mem:128, cdrom:{url:IMG.linux}},
+  {id:"openbsd", cat:"Другие", name:"OpenBSD", emoji:"🐡", color:"#ff9500", size:"образ диска",
+   desc:"Экспериментальная загрузка OpenBSD; может потребовать настройки.", mem:128, hda:{url:IMG.openbsd}},
+  {id:"os8", cat:"Другие", name:"OS/8", emoji:"⌨️", color:"#af52de", size:"DSK",
+   desc:"Историческая ОС для PDP-8; это не x86-ПК и она не загрузится как обычная ОС в v86.", mem:32, fda:{url:IMG.os8}},
   {id:"win1", cat:"Windows", name:"Windows 1.01", emoji:"🪟", color:"#007aff", size:"0.7 МБ",
-   desc:"Первая версия Windows (1985).", mem:32, fda:{url:I+"windows101.img"}},
+   desc:"Первая версия Windows (1985).", mem:32, fda:{url:IMG.windows101}},
 ];
 
 /* ============ TELEGRAM ============ */
@@ -178,6 +230,38 @@ function renderList(filter=""){
   $("groups").innerHTML = html || `<div class="empty">Ничего не найдено</div>`;
 }
 $("q").oninput = e => renderList(e.target.value);
+
+function selectTab(which){
+  const custom = which === "custom";
+  $("catalogPanel").hidden = custom;
+  $("customPanel").hidden = !custom;
+  $("tabCatalog").classList.toggle("active", !custom);
+  $("tabCustom").classList.toggle("active", custom);
+}
+$("tabCatalog").onclick = () => selectTab("catalog");
+$("tabCustom").onclick = () => selectTab("custom");
+
+let customImageFile = null;
+$("customFile").addEventListener("change", e => {
+  customImageFile = e.target.files?.[0] || null;
+  $("customFileInfo").textContent = customImageFile
+    ? `${customImageFile.name} · ${(customImageFile.size / 1024 / 1024).toFixed(2)} МБ`
+    : "Файл не выбран";
+  $("customLaunch").disabled = !customImageFile;
+});
+$("customLaunch").onclick = () => {
+  if(!customImageFile) return;
+  const drive = $("customDrive").value;
+  const ram = Number($("customRam").value);
+  const name = customImageFile.name.replace(/\\.[^.]+$/, "") || "Свой образ";
+  const customOS = {
+    id: "custom", name, emoji: "💿", color: "#007aff",
+    size: `${(customImageFile.size / 1024 / 1024).toFixed(2)} МБ`,
+    desc: `Пользовательский образ · ${drive === "hda" ? "жёсткий диск" : drive === "cdrom" ? "CD/DVD" : "дискета"}`,
+    mem: ram, customFile: customImageFile, customDrive: drive
+  };
+  launch(customOS);
+};
 $("groups").onclick = e => {
   const c = e.target.closest(".cell"); if(!c) return;
   haptic(); openSheet(OS.find(o=>o.id===c.dataset.id));
@@ -190,6 +274,7 @@ function openSheet(os){
   $("sIco").textContent = os.emoji; $("sIco").style.background = os.color+"22";
   $("sName").textContent = os.name; $("sDesc").textContent = os.desc;
   $("sMeta").innerHTML = `<span class="chip">${os.size}</span><span class="chip">${os.mem} МБ RAM</span>`;
+  $("sShare").style.display = os.customFile ? "none" : "block";
   $("sheetBg").style.display = "block";
   requestAnimationFrame(()=>$("sheet").classList.add("on"));
   if (inTG){
@@ -228,13 +313,16 @@ function launch(os){
     autostart: true,
   };
   for (const k of ["fda","hda","cdrom","bzimage","cmdline","initrd"]) if(os[k]) opts[k]=os[k];
+  if(os.customFile && os.customDrive){
+    opts[os.customDrive] = { buffer: os.customFile };
+  }
   emu = new V86(opts);
   emu.add_listener("download-progress", e=>{
     if(e.total) $("loadBar").style.width = Math.round(e.loaded/e.total*100)+"%";
     $("loadTxt").textContent = `Загрузка ${e.file_index+1}/${e.file_count}`;
   });
   emu.add_listener("download-error", ()=>{
-    $("loadTxt").textContent = "Не удалось загрузить образ. Проверь сеть и попробуй снова.";
+    $("loadTxt").textContent = "Не удалось загрузить образ. Проверь формат файла и совместимость с v86.";
     tg?.HapticFeedback?.notificationOccurred("error");
   });
   emu.add_listener("emulator-started", ()=>{ $("load").style.display="none"; tg?.HapticFeedback?.notificationOccurred("success"); });
