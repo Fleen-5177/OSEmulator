@@ -87,6 +87,18 @@ h1{font-size:26px;margin:4px 4px 12px;font-weight:700}
 #keys button{flex:none;min-width:44px;border:0;border-radius:8px;padding:10px 12px;background:var(--sec);color:var(--txt);font:inherit;font-size:14px}
 #keys button:active{background:var(--btn);color:var(--btn-t)}
 #kb{position:fixed;left:-100px;top:0;width:10px;opacity:0}
+/* стилизация «Своих образов» ближе к гайдлайнам TG */
+.field-label{color:var(--hint);font-size:13px;font-weight:500;letter-spacing:.2px}
+.file-info{font-size:13px;color:var(--txt);margin-top:8px;padding:10px 12px;border-radius:10px;background:var(--bg2);overflow-wrap:anywhere}
+/* горизонтальный режим: панель клавиш справа, бар — узкой колонкой слева */
+@media (orientation:landscape){
+  #run{flex-direction:row;align-items:stretch}
+  #bar{flex-direction:column;align-items:stretch;width:auto;padding:calc(var(--top) + 8px) 10px 8px;gap:6px}
+  #bar b{writing-mode:vertical-rl;flex:none;max-height:38vh;font-size:14px}
+  #stage{flex:1;min-width:0}
+  #keys{flex-direction:column;overflow-y:auto;overflow-x:hidden;padding:8px calc(var(--bot) + 10px) 8px 8px;align-items:center}
+  #keys button{min-width:56px}
+}
 </style>
 </head>
 <body>
@@ -106,8 +118,9 @@ h1{font-size:26px;margin:4px 4px 12px;font-weight:700}
     <div class="custom-card">
       <h2>Запустить свой образ</h2>
       <p>Выбери локальный файл. Он обрабатывается в браузере и не отправляется на сервер.</p>
-      <label class="field-label" for="customFile">Файл образа (.img, .ima, .dsk, .iso, .bin)</label>
-      <input id="customFile" class="file-input" type="file" accept=".img,.ima,.dsk,.iso,.bin,.raw,.vfd,application/octet-stream">
+      <label class="field-label" for="pickFileBtn">Файл образа (.img, .ima, .dsk, .iso, .bin)</label>
+      <button class="btn sec" id="pickFileBtn" type="button">Выбрать файл</button>
+      <input id="customFile" type="file" hidden accept=".img,.ima,.dsk,.iso,.bin,.raw,.vfd">
       <div id="customFileInfo" class="file-info">Файл не выбран</div>
       <label class="field-label" for="customDrive">Тип устройства</label>
       <select id="customDrive" class="select">
@@ -241,6 +254,7 @@ function selectTab(which){
 $("tabCatalog").onclick = () => selectTab("catalog");
 $("tabCustom").onclick = () => selectTab("custom");
 
+$("pickFileBtn").onclick = () => $("customFile").click();
 let customImageFile = null;
 $("customFile").addEventListener("change", e => {
   customImageFile = e.target.files?.[0] || null;
@@ -346,30 +360,43 @@ if(!inTG){ addEventListener("keydown",e=>{ if(e.key==="Escape" && $("run").class
 
 /* ---- тачпад: касание = перемещение, тап = ЛКМ, два пальца = ПКМ ---- */
 function setupTouchpad(){
-  const st = $("stage"); let last=null, moved=false, fingers=0, t0=0;
+  const st = $("stage");
+  let last=null, start=null, moved=false, fingers=0, t0=0;
   emu.add_listener("emulator-ready", ()=>{ try{ emu.mouse_set_enabled(false); }catch{} });
-  st.ontouchstart = e=>{ fingers=Math.max(fingers,e.touches.length); last=e.touches[0]; moved=false; t0=Date.now(); e.preventDefault(); };
+  st.ontouchstart = e=>{
+    fingers = Math.max(fingers, e.touches.length);
+    const t = e.touches[0];
+    last = t; start = {x:t.clientX, y:t.clientY};
+    moved = false; t0 = Date.now();
+    e.preventDefault();
+  };
   st.ontouchmove = e=>{
-    const t=e.touches[0]; if(!last) return;
+    const t = e.touches[0]; if(!last || !start) return;
     const dx=(t.clientX-last.clientX)*1.6, dy=(t.clientY-last.clientY)*1.6;
-    if(Math.abs(dx)+Math.abs(dy)>0) moved=true;
-    emu.bus.send("mouse-delta",[dx,-dy]); last=t; e.preventDefault();
+    emu.bus.send("mouse-delta",[dx,-dy]);
+    if(Math.abs(t.clientX-start.x) + Math.abs(t.clientY-start.y) > 14) moved = true;
+    last = t; e.preventDefault();
   };
   st.ontouchend = e=>{
     if(e.touches.length) return;
-    if(!moved && Date.now()-t0<300){
-      const btn = fingers>1 ? [false,false,true] : [true,false,false];
-      emu.bus.send("mouse-click",btn); setTimeout(()=>emu.bus.send("mouse-click",[false,false,false]),50);
+    if(!moved && Date.now()-t0 < 600){
+      mouseClick(fingers>1 ? [false,false,true] : [true,false,false]);
       haptic("light");
     }
-    fingers=0; last=null;
+    fingers = 0; last = null; start = null;
   };
+}
+function mouseClick(btn){
+  if(!emu) return;
+  emu.bus.send("mouse-click", btn);
+  setTimeout(()=>emu?.bus.send("mouse-click",[false,false,false]), 60);
 }
 
 /* ---- экранные клавиши ---- */
 const key = (make, ext=false) => ext ? [0xE0,make,0xE0,make|0x80] : [make,make|0x80];
 const KEYS = [
   ["⌨️", ()=>$("kb").focus()],
+  ["🖱 ЛКМ", ()=>mouseClick([true,false,false])], ["🖱 ПКМ", ()=>mouseClick([false,false,true])],
   ["Esc", ()=>key(0x01)], ["Tab", ()=>key(0x0F)], ["Enter", ()=>key(0x1C)],
   ["←", ()=>key(0x4B,true)], ["↑", ()=>key(0x48,true)], ["↓", ()=>key(0x50,true)], ["→", ()=>key(0x4D,true)],
   ["Ctrl+Alt+Del", ()=>[0x1D,0x38,0xE0,0x53,0xE0,0xD3,0xB8,0x9D]],
