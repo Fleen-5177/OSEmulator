@@ -105,7 +105,7 @@ h1{font-size:26px;margin:4px 4px 12px;font-weight:700}
 
 <!-- Каталог -->
 <section id="list" class="view on">
-  <h1>Эмулятор ПК</h1>
+  <h1>OSEmulator (beta 1.3)</h1>
   <div class="tabs">
     <button class="tab active" id="tabCatalog" type="button">Каталог ОС</button>
     <button class="tab" id="tabCustom" type="button">Свои образы</button>
@@ -120,7 +120,7 @@ h1{font-size:26px;margin:4px 4px 12px;font-weight:700}
       <p>Выбери локальный файл. Он обрабатывается в браузере и не отправляется на сервер.</p>
       <label class="field-label" for="pickFileBtn">Файл образа (.img, .ima, .dsk, .iso, .bin)</label>
       <button class="btn sec" id="pickFileBtn" type="button">Выбрать файл</button>
-      <input id="customFile" type="file" hidden accept=".img,.ima,.dsk,.iso,.bin,.raw,.vfd">
+      <input id="customFile" type="file" hidden>
       <div id="customFileInfo" class="file-info">Файл не выбран</div>
       <label class="field-label" for="customDrive">Тип устройства</label>
       <select id="customDrive" class="select">
@@ -137,7 +137,7 @@ h1{font-size:26px;margin:4px 4px 12px;font-weight:700}
         <option value="512">512 МБ</option>
       </select>
       <button class="btn" id="customLaunch" type="button" disabled>Запустить образ</button>
-      <div class="custom-note">Образ должен быть совместим с x86 и BIOS-эмуляцией v86. Большие файлы целиком загружаются в память браузера, поэтому на телефоне лучше начинать с небольших образов. Обычные 64-битные ОС не поддерживаются.</div>
+      <div class="custom-note">Образ должен быть совместим с x86 и BIOS-эмуляцией v86. Большие файлы целиком загружаются в память браузера, поэтому на телефоне лучше начинать с небольших образов. 64-битные ОС не поддерживаются.</div>
     </div>
   </div>
 </section>
@@ -166,16 +166,16 @@ h1{font-size:26px;margin:4px 4px 12px;font-weight:700}
 </div>
 
 <script>
-/* ============ НАСТРОЙКИ ============ */
-const BOT = "your_bot";          // username бота без @
-const APP = "v86";               // short name мини-аппа из BotFather
+/* НАСТРОЙКИ */
+const BOT = "osemuapp";
+const APP = "OSEmulator";
 const CDN = {
   wasm:   "https://cdn.jsdelivr.net/npm/v86@latest/build/v86.wasm",
   bios:   "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin",
   vga:    "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin",
   images: "https://raw.githubusercontent.com/copy/images/master/",
 };
-// Прямые публичные файлы GitHub. Загружаются целиком, поэтому Range не требуется.
+// образээээ 
 const IMG = {
   kolibri: "https://raw.githubusercontent.com/copy/images/master/kolibri.img",
   freedos: "https://raw.githubusercontent.com/copy/images/master/freedos722.img",
@@ -186,7 +186,7 @@ const IMG = {
   windows101: "https://raw.githubusercontent.com/copy/images/master/windows101.img",
 };
 
-/* ============ РЕЕСТР ОС ============
+/* РЕЕСТР ОС 
    Поля disk-образов (fda/hda/cdrom/bzimage) — это 1-в-1 опции конструктора V86.
    Новые ОС копируй из массива профилей в src/browser/main.js репозитория copy/v86. */
 const OS = [
