@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>OSEmulator</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"></script>
+<script src="libv86.js"></script>
 <style>
 :root{
   --bg:var(--tg-theme-bg-color,#fff);
@@ -75,30 +75,36 @@ h1{font-size:26px;margin:4px 4px 12px;font-weight:700}
 #bar{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg2);color:var(--txt);flex:none}
 #bar b{flex:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #bar button{border:0;border-radius:8px;padding:6px 10px;background:var(--sec);color:var(--link);font:inherit;font-size:14px}
-#stage{flex:1;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none}
-#screen{width:100%}
-#screen canvas{width:100%!important;height:auto!important;image-rendering:pixelated;display:block}
-#screen>div{white-space:pre;font:14px/14px monospace;color:#ccc}
+#stage{flex:1;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none;container-type:size}
+#screen{width:100%;height:100%;min-width:0;min-height:0;position:relative}
+#screen canvas{position:absolute;inset:0;margin:auto;width:auto;height:auto;max-width:100%;max-height:100%;image-rendering:pixelated;display:block}
+#screen>div{position:absolute;inset:0;white-space:pre;font: min(14px,1.7cqw,3.5cqh)/1em monospace;color:#ccc}
 #load{position:absolute;inset:0;display:grid;place-content:center;gap:12px;text-align:center;
   background:var(--bg2);color:var(--hint);z-index:2}
 #load .bar{width:200px;height:4px;border-radius:2px;background:var(--sep);overflow:hidden}
 #load .bar i{display:block;height:100%;width:0;background:var(--btn);transition:width .2s}
+#controls{display:contents}
+#bar{order:0}
+#stage{order:1}
 #keys{display:flex;gap:6px;padding:8px 10px calc(var(--bot) + 8px);background:var(--bg2);overflow-x:auto;flex:none}
+#keys{order:2}
 #keys button{flex:none;min-width:44px;border:0;border-radius:8px;padding:10px 12px;background:var(--sec);color:var(--txt);font:inherit;font-size:14px}
 #keys button:active{background:var(--btn);color:var(--btn-t)}
+#keys button.held{background:var(--btn);color:var(--btn-t)}
 #kb{position:fixed;left:-100px;top:0;width:10px;opacity:0}
 .field-label{color:var(--hint);font-size:13px;font-weight:500;letter-spacing:.2px}
 .file-info{font-size:13px;color:var(--txt);margin-top:8px;padding:10px 12px;border-radius:10px;background:var(--bg2);overflow-wrap:anywhere}
 @media (orientation:landscape){
-  #run{flex-direction:row;align-items:stretch}
-  #keys{order:-1;flex-direction:column;overflow-y:auto;overflow-x:hidden;padding:8px;align-items:center}
-  #stage{flex:1;min-width:0}
-  #bar{order:2;flex-direction:column;align-items:stretch;width:auto;padding:calc(var(--top) + 8px) 10px 8px;gap:6px}
-  #bar b{writing-mode:vertical-rl;flex:none;max-height:38vh;font-size:14px}
-  #keys button{min-width:56px}
+  #run{flex-direction:row;align-items:stretch;padding-top:0}
+  #controls{display:flex;flex-direction:column;flex:none;min-height:0;width:clamp(76px,22vw,144px);padding:calc(var(--top) + 6px) 5px calc(var(--bot) + 6px);background:var(--bg2)}
+  #bar{flex-direction:column;align-items:stretch;padding:0 2px 6px;gap:5px}
+  #bar b{font-size:12px;line-height:1.15;flex:none;max-height:2.3em}
+  #bar button{font-size:11px;padding:6px 3px;white-space:nowrap}
+  #keys{flex:1;min-height:0;flex-direction:column;overflow-y:auto;overflow-x:hidden;padding:4px 2px;gap:4px}
+  #keys button{width:100%;min-width:0;padding:7px 2px;font-size:12px;white-space:nowrap}
+  #stage{flex:1;min-width:0;min-height:0}
 }
-body[data-side="right"] #keys{order:2}
-body[data-side="right"] #bar{order:-1}
+body[data-side="right"] #controls{order:2}
 /* настройки */
 .sens-row{display:flex;align-items:center;gap:12px;margin-top:2px}
 .sens-row input[type=range]{flex:1;min-width:0;accent-color:var(--btn)}
@@ -151,7 +157,7 @@ body[data-side="right"] #bar{order:-1}
   <div id="settingsPanel" hidden>
     <div class="custom-card">
       <h2>Настройки</h2>
-      <p>Сохраняются автоматически на этом устройстве.</p>
+      <p>Настройки сохраняются в Telegram Cloud. Если он недоступен, используется хранилище браузера.</p>
       <label class="field-label" for="setSens">Чувствительность мыши</label>
       <div class="sens-row">
         <input id="setSens" type="range" min="0.5" max="3" step="0.1">
@@ -169,6 +175,7 @@ body[data-side="right"] #bar{order:-1}
         <option value="left">Слева</option>
         <option value="right">Справа</option>
       </select>
+      <div class="custom-note">На экране удерживай палец около 0,4 с, чтобы зажать ЛКМ (двумя пальцами — ПКМ). Кнопки ЛКМ/ПКМ на панели переключают удержание, а курсор перемещается касанием по экрану.</div>
       <label class="field-label">Кнопки управления в эмуляторе</label>
       <div id="setKeys"></div>
       <button class="btn sec" id="setReset" type="button">Сбросить настройки</button>
@@ -178,12 +185,14 @@ body[data-side="right"] #bar{order:-1}
 
 <!-- Эмулятор -->
 <section id="run" class="view">
-  <div id="bar"><b id="title"></b><button id="bShare">Поделиться</button><button id="bReset">Сброс</button></div>
+  <div id="controls">
+    <div id="bar"><b id="title"></b><button id="bShare">Поделиться</button><button id="bReset">Сброс</button></div>
+    <div id="keys"></div>
+  </div>
   <div id="stage">
     <div id="screen"><div></div><canvas></canvas></div>
     <div id="load"><div id="loadTxt">Запуск…</div><div class="bar"><i id="loadBar"></i></div></div>
   </div>
-  <div id="keys"></div>
   <input id="kb" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
 </section>
 
@@ -201,8 +210,8 @@ body[data-side="right"] #bar{order:-1}
 
 <script>
 /* ============ НАСТРОЙКИ ============ */
-const BOT = "osemuapp";          // username бота без @
-const APP = "osemu";               // short name мини-аппа из BotFather
+const BOT = "osemuapp";          // username бота
+const APP = "osemu";               // short name
 const CDN = {
   wasm:   "https://cdn.jsdelivr.net/npm/v86@latest/build/v86.wasm",
   bios:   "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin",
@@ -240,7 +249,7 @@ const OS = [
    desc:"Первая версия Windows (1985).", mem:32, fda:{url:IMG.windows101}},
 ];
 
-/* ============ TELEGRAM ============ */
+// тг синхрон 
 const tg = window.Telegram?.WebApp;
 const inTG = !!(tg && tg.initData);
 const $ = id => document.getElementById(id);
@@ -259,7 +268,7 @@ function share(os){
   tg ? tg.openTelegramLink(url) : window.open(url, "_blank");
 }
 
-/* ============ КАТАЛОГ ============ */
+// лень норм коментарии писать пускай за меня ето делает ии
 function renderList(filter=""){
   const f = filter.trim().toLowerCase();
   const cats = [...new Set(OS.map(o=>o.cat))];
@@ -317,7 +326,7 @@ $("groups").onclick = e => {
   haptic(); openSheet(OS.find(o=>o.id===c.dataset.id));
 };
 
-/* ============ ЛИСТ ============ */
+//листтт иоиоио 
 let cur = null, mainHandler = null;
 function openSheet(os){
   cur = os;
@@ -342,7 +351,7 @@ $("sheetBg").onclick = closeSheet;
 $("sGo").onclick = ()=>launch(cur);
 $("sShare").onclick = ()=>share(cur);
 
-/* ============ ЭМУЛЯТОР ============ */
+//ЭМУЛЯТОР
 let emu = null;
 function show(view){ document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on",v.id===view)); }
 
@@ -380,6 +389,13 @@ function launch(os){
   history.replaceState(null,"","#"+os.id);
 }
 function exit(){
+  clearTimeout(clickMouseTimer);
+  clickMouseTimer = null;
+  panelMouseButtons.fill(false);
+  touchMouseButtons.fill(false);
+  clickMouseButtons.fill(false);
+  sendMouseButtons();
+  updateMouseButtonUI();
   try{ emu?.destroy(); }catch{}
   emu = null;
   $("screen").innerHTML = "<div></div><canvas></canvas>";
@@ -394,53 +410,187 @@ $("bReset").onclick = ()=>{ haptic("rigid"); emu?.restart(); };
 $("bShare").onclick = ()=>share(cur);
 if(!inTG){ addEventListener("keydown",e=>{ if(e.key==="Escape" && $("run").classList.contains("on")) exit(); }); }
 
-/* ---- тачпад: касание = перемещение, тап = ЛКМ, два пальца = ПКМ ---- */
+/*тачпад:*/
+const panelMouseButtons = [false,false,false];
+const touchMouseButtons = [false,false,false];
+const clickMouseButtons = [false,false,false];
+let clickMouseTimer = null;
+function sendMouseButtons(){
+  if(!emu) return;
+  emu.bus.send("mouse-click", panelMouseButtons.map((pressed,i)=>pressed||touchMouseButtons[i]||clickMouseButtons[i]));
+}
+function setTouchMouseButton(index, pressed){
+  touchMouseButtons[index] = pressed;
+  sendMouseButtons();
+}
+function togglePanelMouseButton(index){
+  panelMouseButtons[index] = !panelMouseButtons[index];
+  sendMouseButtons();
+  updateMouseButtonUI();
+}
+function updateMouseButtonUI(){
+  document.querySelectorAll("#keys button[data-key='lmb'],#keys button[data-key='rmb']").forEach(button=>{
+    const index = button.dataset.key === "lmb" ? 0 : 2;
+    button.classList.toggle("held", panelMouseButtons[index]);
+    button.setAttribute("aria-pressed", String(panelMouseButtons[index]));
+  });
+}
 function setupTouchpad(){
   const st = $("stage");
-  let last=null, start=null, moved=false, fingers=0, t0=0;
+  let last=null, start=null, moved=false, fingers=0, t0=0, holdTimer=null, held=false, gestureButton=0;
   emu.add_listener("emulator-ready", ()=>{ try{ emu.mouse_set_enabled(false); }catch{} });
+  const startHold = button=>{
+    clearTimeout(holdTimer);
+    gestureButton = button;
+    holdTimer = setTimeout(()=>{
+      if(!start || moved || !emu) return;
+      held = true;
+      setTouchMouseButton(button, true);
+    },400);
+  };
+  const finishGesture = (cancelled=false)=>{
+    clearTimeout(holdTimer);
+    if(held) setTouchMouseButton(gestureButton, false);
+    else if(!cancelled && !moved && Date.now()-t0 < 600){
+      mouseClick(fingers>1 ? [false,false,true] : [true,false,false]);
+      haptic("light");
+    }
+    fingers = 0; last = null; start = null; moved = false; held = false; gestureButton = 0;
+  };
   st.ontouchstart = e=>{
     fingers = Math.max(fingers, e.touches.length);
     const t = e.touches[0];
-    last = t; start = {x:t.clientX, y:t.clientY};
-    moved = false; t0 = Date.now();
+    if(!start){
+      last = t; start = {x:t.clientX, y:t.clientY};
+      moved = false; held = false; t0 = Date.now();
+      startHold(e.touches.length > 1 ? 2 : 0);
+    }else if(e.touches.length > 1 && gestureButton !== 2){
+      if(held) setTouchMouseButton(gestureButton, false);
+      held = false;
+      startHold(2);
+    }
     e.preventDefault();
   };
   st.ontouchmove = e=>{
     const t = e.touches[0]; if(!last || !start) return;
     const dx=(t.clientX-last.clientX)*settings.sens, dy=(t.clientY-last.clientY)*settings.sens;
     emu.bus.send("mouse-delta",[dx,-dy]);
-    if(Math.abs(t.clientX-start.x) + Math.abs(t.clientY-start.y) > 14) moved = true;
+    if(Math.abs(t.clientX-start.x) + Math.abs(t.clientY-start.y) > 14 && !held){
+      moved = true;
+      clearTimeout(holdTimer);
+    }
     last = t; e.preventDefault();
   };
-  st.ontouchend = e=>{
-    if(e.touches.length) return;
-    if(!moved && Date.now()-t0 < 600){
-      mouseClick(fingers>1 ? [false,false,true] : [true,false,false]);
-      haptic("light");
-    }
-    fingers = 0; last = null; start = null;
-  };
+  st.ontouchend = e=>{ if(!e.touches.length) finishGesture(); };
+  st.ontouchcancel = ()=>finishGesture(true);
 }
 function mouseClick(btn){
   if(!emu) return;
-  emu.bus.send("mouse-click", btn);
-  setTimeout(()=>emu?.bus.send("mouse-click",[false,false,false]), 60);
+  btn.forEach((pressed,i)=>{ if(pressed) clickMouseButtons[i] = true; });
+  sendMouseButtons();
+  clearTimeout(clickMouseTimer);
+  clickMouseTimer = setTimeout(()=>{
+    clickMouseButtons.fill(false);
+    sendMouseButtons();
+    clickMouseTimer = null;
+  },60);
 }
 
-/* ---- экранные клавиши ---- */
-/* ============ НАСТРОЙКИ (хранятся локально) ============ */
-const SETTINGS_KEY = "v86_tg_settings";
+/*НАСТРОЙКИ*/
+const SETTINGS_KEY = "osemu_settings";
 const DEFAULT_SETTINGS = { sens: 1.6, scale: "fit", side: "left", keys: {} };
-let settings = { ...DEFAULT_SETTINGS };
-try{ settings = { ...DEFAULT_SETTINGS, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}) }; }catch{}
-function saveSettings(){ try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }catch{} }
+function parseSettings(value, storageName){
+  if(!value) return null;
+  try{
+    const parsed = JSON.parse(value);
+    if(!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Expected a settings object");
+    return { ...DEFAULT_SETTINGS, ...parsed };
+  }catch(error){
+    console.warn(`Could not read settings from ${storageName}; using defaults or fallback storage.`, error);
+    return null;
+  }
+}
+function readLocalSettings(){
+  try{ return parseSettings(localStorage.getItem(SETTINGS_KEY), "localStorage") || { ...DEFAULT_SETTINGS }; }
+  catch(error){
+    console.error("Could not read settings from localStorage.", error);
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+const cloudStorage = tg?.CloudStorage;
+const cloudStorageVersionSupported = !tg?.isVersionAtLeast || tg.isVersionAtLeast("6.9");
+let cloudStorageUsable = !!(cloudStorageVersionSupported && cloudStorage &&
+  typeof cloudStorage.getItem === "function" && typeof cloudStorage.setItem === "function");
+function cloudGetSettings(){
+  return new Promise((resolve,reject)=>{
+    try{
+      cloudStorage.getItem(SETTINGS_KEY,(error,value)=>{
+        if(error) reject(error instanceof Error ? error : new Error(String(error)));
+        else resolve(value || null);
+      });
+    }catch(error){ reject(error); }
+  });
+}
+function cloudSetSettings(value){
+  return new Promise((resolve,reject)=>{
+    try{
+      cloudStorage.setItem(SETTINGS_KEY,value,error=>{
+        if(error) reject(error instanceof Error ? error : new Error(String(error)));
+        else resolve();
+      });
+    }catch(error){ reject(error); }
+  });
+}
+let settings = readLocalSettings();
+let settingsRevision = 0;
+let settingsWriteQueue = Promise.resolve();
+function saveSettings(){
+  const value = JSON.stringify(settings);
+  settingsRevision++;
+  settingsWriteQueue = settingsWriteQueue.then(async()=>{
+    if(cloudStorageUsable){
+      try{
+        await cloudSetSettings(value);
+        return;
+      }catch(error){
+        cloudStorageUsable = false;
+        console.warn("Telegram CloudStorage is unavailable; saving settings to localStorage instead.", error);
+      }
+    }
+    try{ localStorage.setItem(SETTINGS_KEY,value); }
+    catch(error){ console.error("Could not save settings to localStorage.", error); }
+  });
+  return settingsWriteQueue;
+}
+async function loadCloudSettings(){
+  if(!cloudStorageUsable) return;
+  try{
+    const stored = await cloudGetSettings();
+    if(stored){
+      const cloudSettings = parseSettings(stored,"Telegram CloudStorage");
+      if(cloudSettings){
+        if(settingsRevision === 0){
+          settings = cloudSettings;
+          applySettingsUI();
+        }
+        return;
+      }
+    }else{
+      const legacySettings = localStorage.getItem(SETTINGS_KEY);
+      if(legacySettings && settingsRevision === 0) await cloudSetSettings(legacySettings);
+      return;
+    }
+  }catch(error){
+    cloudStorageUsable = false;
+    console.warn("Telegram CloudStorage is unavailable; using localStorage for settings.", error);
+  }
+}
 
 const key = (make, ext=false) => ext ? [0xE0,make,0xE0,make|0x80] : [make,make|0x80];
 const KEYDEFS = [
   ["kbd",   "⌨️ Клавиатура",     ()=>$("kb").focus()],
-  ["lmb",   "🖱 ЛКМ",             ()=>mouseClick([true,false,false])],
-  ["rmb",   "🖱 ПКМ",             ()=>mouseClick([false,false,true])],
+  ["lmb",   "🖱 ЛКМ",             ()=>togglePanelMouseButton(0)],
+  ["rmb",   "🖱 ПКМ",             ()=>togglePanelMouseButton(2)],
   ["esc",   "Esc",               ()=>key(0x01)],
   ["tab",   "Tab",               ()=>key(0x0F)],
   ["enter", "Enter",             ()=>key(0x1C)],
@@ -456,20 +606,25 @@ const KEYDEFS = [
 ];
 function renderKeys(){
   const vis = KEYDEFS.filter(k => settings.keys[k[0]] !== false);
-  $("keys").innerHTML = vis.map((k,i)=>`<button data-i="${i}">${k[1].replace(/^⌨️ |^🖱 /,"")}</button>`).join("");
+  $("keys").innerHTML = vis.map((k,i)=>`<button data-i="${i}" data-key="${k[0]}"${k[0]==="lmb"||k[0]==="rmb" ? ' title="Нажми, чтобы зажать; нажми ещё раз, чтобы отпустить. Перемещай курсор касанием экрана."' : ""}>${k[1].replace(/^⌨️ |^🖱 /,"")}</button>`).join("");
   $("keys").onclick = e=>{
     const b=e.target.closest("button"); if(!b||!emu) return;
     haptic("light");
     const r = vis[b.dataset.i][2]();
     if(Array.isArray(r)) emu.keyboard_send_scancodes(r);
   };
+  updateMouseButtonUI();
 }
 function applyScale(){
   const cv = $("screen").querySelector("canvas"); if(!cv) return;
-  if(settings.scale === "fit"){ cv.style.width = "100%"; }
-  else { cv.style.width = (cv.width * parseFloat(settings.scale)) + "px"; }
-  cv.style.height = "auto";
+  const stage = $("stage");
+  if(!cv.width || !cv.height || !stage.clientWidth || !stage.clientHeight) return;
+  const scale = settings.scale === "fit" ? Infinity : parseFloat(settings.scale);
+  const factor = Math.min(scale, stage.clientWidth/cv.width, stage.clientHeight/cv.height);
+  cv.style.width = `${cv.width*factor}px`;
+  cv.style.height = `${cv.height*factor}px`;
 }
+addEventListener("resize", applyScale);
 function applySettingsUI(){
   $("setSens").value = settings.sens;
   $("setSensVal").textContent = (+settings.sens).toFixed(1) + "×";
@@ -489,6 +644,7 @@ $("setKeys").onchange = e => {
 };
 $("setReset").onclick = () => { settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)); saveSettings(); applySettingsUI(); haptic("medium"); };
 applySettingsUI();
+void loadCloudSettings();
 $("kb").addEventListener("input", e=>{
   if(!emu) return;
   if(e.inputType==="deleteContentBackward") emu.keyboard_send_scancodes(key(0x0E));
