@@ -6,6 +6,7 @@
 <title>OSEmulator</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="libv86.js"></script>
+<script src="disk-store.js"></script>
 <style>
 :root{
   --bg:var(--tg-theme-bg-color,#fff);
@@ -17,11 +18,13 @@
   --btn:var(--tg-theme-button-color,#3390ec);
   --btn-t:var(--tg-theme-button-text-color,#fff);
   --sh:var(--tg-theme-section-header-text-color,#6d6d72);
+  --danger:#ff3b30;
   --sep:color-mix(in srgb,var(--hint) 25%,transparent);
   --top:max(var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px),env(safe-area-inset-top,0px));
   --bot:max(var(--tg-safe-area-inset-bottom,0px),env(safe-area-inset-bottom,0px));
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
 html,body{margin:0;height:100%;background:var(--bg2);color:var(--txt);
   font:16px/1.3 -apple-system,BlinkMacSystemFont,"Roboto","Segoe UI",sans-serif;overscroll-behavior:none}
 .view{display:none;height:100%}
@@ -29,12 +32,41 @@ html,body{margin:0;height:100%;background:var(--bg2);color:var(--txt);
 
 /* список */
 #list{overflow-y:auto;padding:calc(var(--top) + 12px) 16px calc(var(--bot) + 24px)}
-.tabs{display:flex;gap:6px;padding:4px;background:color-mix(in srgb,var(--hint) 12%,transparent);border-radius:12px;margin:0 0 12px}
-.tab{flex:1;border:0;border-radius:9px;padding:10px 8px;background:transparent;color:var(--txt);font:inherit;font-size:14px}
+.tabs{display:flex;gap:6px;padding:4px;background:color-mix(in srgb,var(--hint) 12%,transparent);border-radius:12px;margin:0 0 12px;overflow-x:auto;scrollbar-width:none}
+.tab{flex:1 0 auto;min-height:40px;border:0;border-radius:9px;padding:10px 12px;background:transparent;color:var(--txt);font:inherit;font-size:14px;white-space:nowrap}
 .tab.active{background:var(--sec);font-weight:600;box-shadow:0 1px 3px #0001}
-.custom-card{background:var(--sec);border-radius:14px;padding:16px}
+.custom-card{background:var(--sec);border-radius:16px;padding:16px}
 .custom-card h2{font-size:20px;margin:0 0 8px}
 .custom-card p{font-size:14px;color:var(--hint);margin:0 0 18px}
+.manager-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px;margin-top:12px}
+.manager-card{background:var(--sec);border-radius:16px;padding:16px;min-width:0}
+.manager-card h3{margin:0 0 8px;font-size:17px;overflow-wrap:anywhere}
+.manager-card p{margin:4px 0;color:var(--hint);font-size:13px;overflow-wrap:anywhere}
+.manager-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.manager-actions .btn{width:auto;flex:1;margin:0;padding:10px}
+.manager-card .btn{min-height:42px}
+.machine-submenu{margin-top:12px;border-top:1px solid var(--sep);padding-top:10px}
+.machine-submenu summary{min-height:40px;display:flex;align-items:center;color:var(--link);font-weight:600;cursor:pointer;list-style:none}
+.machine-submenu summary::-webkit-details-marker{display:none}
+.machine-submenu summary::after{content:"⌄";margin-left:auto;font-size:18px}
+.machine-submenu[open] summary::after{content:"⌃"}
+.machine-settings{padding-top:4px}
+.create-card{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:132px;width:100%;border:1.5px dashed var(--sep);border-radius:16px;background:color-mix(in srgb,var(--sec) 65%,transparent);text-align:center;cursor:pointer;color:var(--link);font:inherit}
+.create-card .create-icon{display:grid;place-items:center;width:40px;height:40px;margin-bottom:8px;border-radius:50%;background:color-mix(in srgb,var(--btn) 14%,transparent);font-size:24px}
+.create-card strong{font-size:15px}
+.create-card span:last-child{margin-top:4px;color:var(--hint);font-size:13px}
+.create-card:active{background:color-mix(in srgb,var(--btn) 10%,var(--sec))}
+.submenu-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.submenu-head h2{flex:1;margin:0}
+.back-btn{border:0;border-radius:10px;padding:9px 12px;background:var(--bg2);color:var(--link);font:inherit;font-weight:600;cursor:pointer}
+.section-title{grid-column:1/-1;margin:10px 4px 0;font-size:13px;color:var(--sh)}
+.manager-form{display:grid;gap:4px}
+.manager-form .btn{margin-top:12px}
+.manager-note{font-size:13px;line-height:1.45;color:var(--hint);margin-top:10px}
+.progress-text{font-size:13px;color:var(--hint);margin-top:8px;overflow-wrap:anywhere}
+.manager-tabs{display:flex;gap:6px;margin:0 0 12px}
+.manager-tabs .btn{margin:0;padding:9px 10px}
+@media(max-width:520px){.manager-list{grid-template-columns:1fr}}
 .field-label{display:block;font-size:14px;font-weight:600;margin:14px 0 7px}
 .file-input,.select{display:block;width:100%;min-width:0;border:1px solid var(--sep);border-radius:10px;padding:11px;background:var(--bg2);color:var(--txt);font:inherit}
 .file-info{font-size:13px;color:var(--hint);margin-top:7px;overflow-wrap:anywhere}
@@ -76,6 +108,9 @@ h1{font-size:26px;margin:4px 4px 12px;font-weight:700}
 #bar b{flex:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #bar button{border:0;border-radius:8px;padding:6px 10px;background:var(--sec);color:var(--link);font:inherit;font-size:14px}
 #stage{flex:1;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none;container-type:size}
+#diskDiagnostics{position:absolute;left:8px;bottom:8px;z-index:3;max-width:min(90%,420px);padding:5px 8px;border-radius:8px;background:#000a;color:#fff;font-size:11px}
+#diskDiagnostics summary{cursor:pointer}
+#diskDiagnosticsText{display:block;max-height:30vh;overflow:auto;margin-top:5px}
 #screen{width:100%;height:100%;min-width:0;min-height:0;position:relative}
 #screen canvas{position:absolute;inset:0;margin:auto;width:auto;height:auto;max-width:100%;max-height:100%;image-rendering:pixelated;display:block}
 #screen>div{position:absolute;inset:0;white-space:pre;font: min(14px,1.7cqw,3.5cqh)/1em monospace;color:#ccc}
@@ -112,6 +147,86 @@ body[data-side="right"] #controls{order:2}
 .tgl-row{display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:15px;cursor:pointer;user-select:none}
 .tgl-row+.tgl-row{border-top:.5px solid var(--sep)}
 .tgl-row input{accent-color:var(--btn);width:18px;height:18px;margin:0;flex:none}
+
+/* Единая тема и мобильные размеры */
+html,body{min-height:100%;height:100%;background:var(--bg);color:var(--txt)}
+.view{height:100vh;height:100dvh;min-height:0}
+#list{padding:calc(var(--top) + 12px) 16px calc(var(--bot) + 20px);overscroll-behavior:contain}
+h1{flex:0 0 auto;font-size:24px;letter-spacing:-.3px}
+.tabs{position:sticky;top:0;z-index:2;flex:0 0 auto;gap:4px;padding:4px;background:var(--bg2);border-radius:14px}
+#list>#managerStatus,#list>#catalogPanel,#list>#customPanel,#list>#disksPanel,#list>#settingsPanel{flex:0 0 auto}
+.tab{min-height:44px;padding:9px 10px;border-radius:11px;font-size:14px}
+.tab.active{background:var(--sec);box-shadow:0 1px 3px #00000014}
+.search{min-height:46px;margin:0 0 8px;border-radius:12px;background:var(--bg2)}
+.hdr{margin:18px 4px 7px;font-size:13px;font-weight:600}
+.group,.custom-card,.manager-card{background:var(--sec);border:1px solid var(--sep);border-radius:16px}
+.cell{min-height:64px;padding:11px 14px}
+.cell .d{font-size:13px}
+.cell .s{font-size:12px}
+.manager-list{grid-template-columns:1fr;gap:10px;margin-top:12px}
+.manager-card{padding:16px}
+.manager-card h3{font-size:17px}
+.manager-actions{gap:8px}
+.manager-actions .btn{flex:1 1 calc(50% - 8px);min-height:44px}
+.manager-actions .btn.danger,.btn.sec.danger{background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger)}
+.machine-submenu{margin-top:14px;padding-top:8px}
+.machine-submenu summary{min-height:46px;gap:10px;color:var(--link);list-style:none}
+.machine-submenu summary::after{content:"";width:9px;height:9px;margin:0 5px 5px auto;border-right:2px solid var(--hint);border-bottom:2px solid var(--hint);transform:rotate(45deg);transition:transform .18s ease}
+.machine-submenu[open] summary::after{content:"";margin-bottom:-4px;transform:rotate(225deg)}
+.machine-settings{padding:4px 0 0}
+.create-card{min-height:104px;border-style:solid;color:var(--txt);text-align:left;align-items:flex-start;padding:16px;position:relative}
+.create-card .create-icon{position:absolute;right:16px;top:calc(50% - 20px);margin:0;color:var(--link)}
+.create-card strong{font-size:16px}
+.create-card span:last-child{padding-right:44px}
+.submenu-head{gap:8px}
+.back-btn{min-height:42px;padding:9px 12px;background:var(--bg2)}
+.field-label{margin:16px 0 7px;color:var(--txt);font-weight:500;letter-spacing:0}
+.file-input,.select{min-height:48px;border:1px solid var(--sep);border-radius:12px;padding:11px 40px 11px 13px;background-color:var(--bg2);color:var(--txt);font:inherit}
+select.select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%238a8a8e' stroke-width='1.8'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 15px center}
+.file-input{padding:10px}
+.file-input::file-selector-button{min-height:32px;margin-right:10px;padding:6px 10px;border:0;border-radius:8px;background:color-mix(in srgb,var(--btn) 14%,transparent);color:var(--link);font:inherit;font-size:14px}
+.select:focus,.file-input:focus,.search:focus{outline:2px solid color-mix(in srgb,var(--link) 45%,transparent);outline-offset:1px}
+.btn{min-height:48px;border-radius:12px;padding:12px 16px;margin-bottom:8px}
+.btn:disabled{opacity:.45}
+.btn.sec{background:color-mix(in srgb,var(--btn) 12%,transparent);color:var(--link)}
+.custom-note,.manager-note{font-size:14px;line-height:1.45}
+.sens-row{min-height:44px}
+.sens-row input[type=range]{accent-color:var(--btn)}
+.tgl-row{min-height:52px;padding:10px 0}
+.tgl-row input[type=checkbox]{appearance:none;position:relative;width:44px;height:26px;border:0;border-radius:99px;background:color-mix(in srgb,var(--hint) 35%,transparent);transition:background .18s ease}
+.tgl-row input[type=checkbox]::after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:transform .18s ease}
+.tgl-row input[type=checkbox]:checked{background:var(--btn)}
+.tgl-row input[type=checkbox]:checked::after{transform:translateX(18px)}
+.tgl-row input[type=checkbox]:focus-visible{outline:2px solid var(--link);outline-offset:2px}
+#managerStatus{padding:0 4px}
+#sheetBg{background:#0006;backdrop-filter:blur(2px)}
+#sheet{left:0;right:0;max-height:min(85dvh,640px);overflow-y:auto;border-radius:20px 20px 0 0;padding:12px 20px calc(var(--bot) + 20px);box-shadow:0 -8px 32px #0002}
+#sheet .grab{width:36px;height:5px;border-radius:99px;background:color-mix(in srgb,var(--hint) 40%,transparent)}
+#sheet h2{font-size:21px}
+#sheet .btn:last-child{margin-bottom:0}
+#bar{min-height:50px;padding:7px 10px}
+#bar button{min-height:38px;border-radius:10px;background:var(--sec);font-weight:500}
+#keys{padding-top:8px}
+#keys button{min-height:44px;border-radius:11px}
+#diskDiagnostics{border-radius:10px}
+.confirm-dialog{width:min(420px,calc(100% - 32px));max-width:100%;padding:22px;border:1px solid var(--sep);border-radius:18px;background:var(--sec);color:var(--txt);box-shadow:0 16px 48px #0003}
+.confirm-dialog::backdrop{background:#0006;backdrop-filter:blur(2px)}
+.confirm-dialog h2{margin:0 0 8px;font-size:20px}
+.confirm-dialog p{margin:0 0 18px;color:var(--hint);line-height:1.45;overflow-wrap:anywhere}
+.confirm-actions{display:flex;gap:8px}
+.confirm-actions .btn{flex:1;margin:0}
+.confirm-dialog .btn.danger{background:var(--danger);color:#fff}
+@media(max-width:520px){
+  #list{padding-left:12px;padding-right:12px}
+  .tabs{margin-bottom:10px}
+  .tab{flex:1 1 0;min-width:0;padding:9px 4px;font-size:12px}
+  .custom-card,.manager-card{padding:14px}
+  .manager-actions .btn{font-size:14px}
+}
+@media(max-width:360px){.tab{padding-right:2px;padding-left:2px;font-size:11px;letter-spacing:-.2px}}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important}
+}
 </style>
 </head>
 <body>
@@ -121,38 +236,72 @@ body[data-side="right"] #controls{order:2}
   <h1>OSEmulator</h1>
   <div class="tabs">
     <button class="tab active" id="tabCatalog" type="button">Каталог ОС</button>
-    <button class="tab" id="tabCustom" type="button">Свои образы</button>
+    <button class="tab" id="tabCustom" type="button">Мои машины</button>
+    <button class="tab" id="tabDisks" type="button">Мои диски</button>
     <button class="tab" id="tabSettings" type="button">Настройки</button>
   </div>
+  <div id="managerStatus" class="progress-text" role="status" aria-live="polite"></div>
   <div id="catalogPanel">
     <input id="q" class="search" type="search" placeholder="Поиск">
     <div id="groups"></div>
   </div>
   <div id="customPanel" hidden>
-    <div class="custom-card">
-      <h2>Запустить свой образ</h2>
-      <p>Выбери локальный файл. Он обрабатывается в браузере и не отправляется на сервер.</p>
-      <label class="field-label" for="pickFileBtn">Файл образа (.img, .ima, .dsk, .iso, .bin)</label>
-      <button class="btn sec" id="pickFileBtn" type="button">Выбрать файл</button>
-      <input id="customFile" type="file" hidden>
-      <div id="customFileInfo" class="file-info">Файл не выбран</div>
-      <label class="field-label" for="customDrive">Тип устройства</label>
-      <select id="customDrive" class="select">
-        <option value="hda">Жёсткий диск (IMG/raw)</option>
-        <option value="cdrom">CD/DVD (ISO)</option>
-        <option value="fda">Дискета (IMG/IMA/DSK)</option>
-      </select>
-      <label class="field-label" for="customRam">Оперативная память</label>
-      <select id="customRam" class="select">
-        <option value="32">32 МБ</option>
-        <option value="64">64 МБ</option>
-        <option value="128" selected>128 МБ</option>
-        <option value="256">256 МБ</option>
-        <option value="512">512 МБ</option>
-      </select>
-      <button class="btn" id="customLaunch" type="button" disabled>Запустить образ</button>
-      <div class="custom-note">Образ должен быть совместим с x86 и BIOS-эмуляцией v86. Большие файлы целиком загружаются в память браузера, поэтому на телефоне лучше начинать с небольших образов. 64-битные ОС не поддерживаются.</div>
+    <div id="machineCreate" class="custom-card" hidden>
+      <div class="submenu-head"><button class="back-btn" type="button" data-close-submenu="machine">← Назад</button><h2>Новая машина</h2></div>
+      <p>Настройки машины сохраняются отдельно. Записи на подключённые виртуальные диски сохраняются автоматически.</p>
+      <form id="machineForm" class="manager-form">
+        <label class="field-label" for="machineName">Название машины</label>
+        <input id="machineName" class="select" maxlength="80" required placeholder="Например, FreeDOS">
+        <label class="field-label" for="machineRam">Оперативная память гостевой ОС</label>
+        <select id="machineRam" class="select">
+          <option value="64">64 МБ</option><option value="128" selected>128 МБ</option>
+          <option value="256">256 МБ</option><option value="512">512 МБ</option><option value="1024">1024 МБ</option>
+        </select>
+        <label class="field-label" for="machineBoot">Загрузочный образ</label>
+        <select id="machineBoot" class="select"><option value="">Без образа — загрузка с диска</option></select>
+        <label class="field-label" for="machineDisk">Основной диск (HDD)</label>
+        <select id="machineDisk" class="select"><option value="">Без диска</option></select>
+        <label class="field-label" for="machineSecondDisk">Дополнительный диск (HDB)</label>
+        <select id="machineSecondDisk" class="select"><option value="">Не подключать</option></select>
+        <label class="field-label" for="machineBootOrder">Приоритет загрузки</label>
+        <select id="machineBootOrder" class="select">
+          <option value="auto">Автоматически</option><option value="cdrom">CD/DVD</option>
+          <option value="hdd">Жёсткий диск</option><option value="floppy">Дискета</option>
+        </select>
+        <button class="btn" type="submit">Создать машину</button>
+      </form>
+      <div class="manager-note">ISO подключается как CD/DVD, а виртуальный HDD остаётся отдельным диском. Возможность установки зависит от самой ОС и загрузочного ISO.</div>
     </div>
+    <div id="machineList" class="manager-list"></div>
+  </div>
+  <div id="disksPanel" hidden>
+    <div id="diskCreate" hidden>
+      <div class="custom-card">
+        <div class="submenu-head"><button class="back-btn" type="button" data-close-submenu="disk">← Назад</button><h2>Новый диск</h2></div>
+        <p>Динамический диск хранит только записанные блоки. Логический предел — до 64 ГБ.</p>
+        <form id="diskForm" class="manager-form">
+        <label class="field-label" for="diskName">Название диска</label>
+        <input id="diskName" class="select" maxlength="80" required placeholder="Например, Linux Disk">
+        <label class="field-label" for="diskSize">Максимальный логический размер</label>
+        <select id="diskSize" class="select">
+          <option value="1">1 ГБ</option><option value="2">2 ГБ</option><option value="4">4 ГБ</option>
+          <option value="8" selected>8 ГБ</option><option value="16">16 ГБ</option><option value="32">32 ГБ</option><option value="64">64 ГБ</option>
+        </select>
+        <label class="tgl-row"><input id="diskInitializeMbr" type="checkbox"> Создать основной MBR-раздел на весь диск</label>
+        <button class="btn" type="submit">Создать пустой диск</button>
+        </form>
+      </div>
+      <div class="custom-card" style="margin-top:12px">
+        <h2>Импорт образа</h2>
+        <p>IMG/raw импортируется в динамический HDD. ISO сохраняется как установочный CD/DVD.</p>
+        <label class="field-label" for="diskImportFile">Файл IMG или ISO</label>
+        <input id="diskImportFile" class="file-input" type="file" accept=".img,.ima,.dsk,.bin,.iso,application/octet-stream">
+        <button id="diskImportButton" class="btn sec" type="button">Импортировать</button>
+        <div id="diskImportProgress" class="progress-text" aria-live="polite"></div>
+      </div>
+    </div>
+    <div id="diskList" class="manager-list"></div>
+    <div id="mediaList" class="manager-list"></div>
   </div>
   <div id="settingsPanel" hidden>
     <div class="custom-card">
@@ -179,6 +328,8 @@ body[data-side="right"] #controls{order:2}
       <label class="field-label">Кнопки управления в эмуляторе</label>
       <div id="setKeys"></div>
       <button class="btn sec" id="setReset" type="button">Сбросить настройки</button>
+      <h2>О эмуляторе</h2>
+      <p>Версия 0.7.0 | <a href="https://github.com/Fleen-5177/OSEmulator" target="_blank">GitHub</a> | By Fleen5177</p>
     </div>
   </div>
 </section>
@@ -186,12 +337,13 @@ body[data-side="right"] #controls{order:2}
 <!-- Эмулятор -->
 <section id="run" class="view">
   <div id="controls">
-    <div id="bar"><b id="title"></b><button id="bShare">Поделиться</button><button id="bReset">Сброс</button></div>
+    <div id="bar"><b id="title"></b><button id="bFullscreen" type="button" aria-label="На весь экран">Экран</button><button id="bShare" type="button">Поделиться</button><button id="bReset" type="button">Сброс</button></div>
     <div id="keys"></div>
   </div>
   <div id="stage">
     <div id="screen"><div></div><canvas></canvas></div>
     <div id="load"><div id="loadTxt">Запуск…</div><div class="bar"><i id="loadBar"></i></div></div>
+    <details id="diskDiagnostics"><summary>Память виртуальных дисков</summary><span id="diskDiagnosticsText"></span></details>
   </div>
   <input id="kb" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
 </section>
@@ -207,6 +359,14 @@ body[data-side="right"] #controls{order:2}
   <button class="btn" id="sGo">Запустить</button>
   <button class="btn sec" id="sShare">Поделиться ссылкой</button>
 </div>
+<dialog id="confirmDialog" class="confirm-dialog" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
+  <h2 id="confirmTitle"></h2>
+  <p id="confirmMessage"></p>
+  <div class="confirm-actions">
+    <button class="btn sec" type="button" data-confirm-cancel>Отмена</button>
+    <button class="btn danger" type="button" data-confirm-accept>Продолжить</button>
+  </div>
+</dialog>
 
 <script>
 /* ============ НАСТРОЙКИ ============ */
@@ -254,6 +414,7 @@ const tg = window.Telegram?.WebApp;
 const inTG = !!(tg && tg.initData);
 const $ = id => document.getElementById(id);
 const haptic = (t="light") => tg?.HapticFeedback?.impactOccurred(t);
+const vmStorage = new OSEmuStorage.DiskStore();
 
 if (tg){
   tg.ready(); tg.expand();
@@ -290,37 +451,475 @@ $("q").oninput = e => renderList(e.target.value);
 function selectTab(which){
   $("catalogPanel").hidden = which !== "catalog";
   $("customPanel").hidden  = which !== "custom";
+  $("disksPanel").hidden = which !== "disks";
   $("settingsPanel").hidden = which !== "settings";
   $("tabCatalog").classList.toggle("active", which === "catalog");
   $("tabCustom").classList.toggle("active", which === "custom");
+  $("tabDisks").classList.toggle("active", which === "disks");
   $("tabSettings").classList.toggle("active", which === "settings");
+  if(which==="custom"||which==="disks") refreshManagerData().catch(showManagerError);
 }
 $("tabCatalog").onclick = () => selectTab("catalog");
 $("tabCustom").onclick = () => selectTab("custom");
+$("tabDisks").onclick = () => selectTab("disks");
 $("tabSettings").onclick = () => selectTab("settings");
 
-$("pickFileBtn").onclick = () => $("customFile").click();
-let customImageFile = null;
-$("customFile").addEventListener("change", e => {
-  customImageFile = e.target.files?.[0] || null;
-  $("customFileInfo").textContent = customImageFile
-    ? `${customImageFile.name} · ${(customImageFile.size / 1024 / 1024).toFixed(2)} МБ`
-    : "Файл не выбран";
-  $("customLaunch").disabled = !customImageFile;
+function escapeHtml(value){
+  return String(value ?? "").replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
+}
+function formatBytes(bytes){
+  if(bytes<1024) return `${bytes} Б`;
+  const units=["КБ","МБ","ГБ","ТБ"];
+  let value=bytes/1024, unit=0;
+  while(value>=1024&&unit<units.length-1){ value/=1024; unit++; }
+  return `${value.toFixed(value>=10?1:2)} ${units[unit]}`;
+}
+function showManagerError(error){
+  console.error("Virtual machine manager error.",error);
+  $("managerStatus").textContent=error?.message || String(error);
+  $("managerStatus").style.color="var(--danger)";
+  tg?.HapticFeedback?.notificationOccurred("error");
+}
+function showManagerMessage(message){
+  $("managerStatus").textContent=message;
+  $("managerStatus").style.color="var(--hint)";
+}
+let confirmationResolver=null;
+function finishConfirmation(accepted){
+  if(!confirmationResolver) return;
+  const resolve=confirmationResolver;
+  confirmationResolver=null;
+  $("confirmDialog").close();
+  resolve(accepted);
+}
+function askConfirmation({title,message,confirmLabel="Продолжить",destructive=false}){
+  const dialog=$("confirmDialog");
+  if(dialog.open) throw new Error("Уже открыто другое подтверждение.");
+  $("confirmTitle").textContent=title;
+  $("confirmMessage").textContent=message;
+  const accept=dialog.querySelector("[data-confirm-accept]");
+  accept.textContent=confirmLabel;
+  accept.classList.toggle("danger",destructive);
+  return new Promise(resolve=>{
+    confirmationResolver=resolve;
+    dialog.showModal();
+    dialog.querySelector("[data-confirm-cancel]").focus();
+  });
+}
+$("confirmDialog").querySelector("[data-confirm-cancel]").onclick=()=>finishConfirmation(false);
+$("confirmDialog").querySelector("[data-confirm-accept]").onclick=()=>finishConfirmation(true);
+$("confirmDialog").addEventListener("cancel",event=>{
+  event.preventDefault();
+  finishConfirmation(false);
 });
-$("customLaunch").onclick = () => {
-  if(!customImageFile) return;
-  const drive = $("customDrive").value;
-  const ram = Number($("customRam").value);
-  const name = customImageFile.name.replace(/\\.[^.]+$/, "") || "Свой образ";
-  const customOS = {
-    id: "custom", name, emoji: "💿", color: "#007aff",
-    size: `${(customImageFile.size / 1024 / 1024).toFixed(2)} МБ`,
-    desc: `Пользовательский образ · ${drive === "hda" ? "жёсткий диск" : drive === "cdrom" ? "CD/DVD" : "дискета"}`,
-    mem: ram, customFile: customImageFile, customDrive: drive
-  };
-  launch(customOS);
+$("confirmDialog").addEventListener("click",event=>{
+  if(event.target!==$("confirmDialog")) return;
+  const bounds=$("confirmDialog").getBoundingClientRect();
+  if(event.clientX<bounds.left||event.clientX>bounds.right||event.clientY<bounds.top||event.clientY>bounds.bottom) finishConfirmation(false);
+});
+function bootDeviceFor(machine){
+  const source=machine.bootSource;
+  if(source?.type==="catalog"&&source.drive==="cdrom"||source?.type==="media") return "0x213";
+  if(source?.type==="catalog-floppy"||source?.type==="catalog"&&source.drive==="fda") return "0x321";
+  if(machine.diskId||source?.type==="catalog"&&source.drive==="hda") return "0x312";
+  return "0x123";
+}
+async function refreshManagerData(){
+  const [disks,machines,media]=await Promise.all([
+    vmStorage.listDisks(),vmStorage.listMachines(),vmStorage.listMedia()
+  ]);
+  const diskOption=(disk,label)=>`<option value="${escapeHtml(disk.id)}">${escapeHtml(label||disk.name)} · ${formatBytes(disk.sizeBytes)}</option>`;
+  const availableOS=OS.filter(os=>os.id!=="os8"&&(os.hda||os.fda||os.cdrom));
+  $("machineBoot").innerHTML=
+    `<option value="">Без загрузочного образа</option>`+
+    availableOS.map(os=>`<option value="catalog:${escapeHtml(os.id)}">${escapeHtml(os.name)} · ${os.cdrom?"ISO":os.hda?"образ HDD":"образ дискеты"}</option>`).join("")+
+    media.filter(item=>item.kind==="iso").map(item=>`<option value="media:${escapeHtml(item.id)}">${escapeHtml(item.name)} · импортированный ISO</option>`).join("");
+  const diskOptions=disks.map(disk=>diskOption(disk)).join("");
+  $("machineDisk").innerHTML=`<option value="">Без диска</option>${diskOptions}`;
+  $("machineSecondDisk").innerHTML=`<option value="">Не подключать</option>${diskOptions}`;
+  const diskSelectOptions=disks.map(disk=>diskOption(disk)).join("");
+  $("machineList").innerHTML=`<h2 class="section-title">Виртуальные машины</h2>`+(machines.length?machines.map(machine=>{
+    const active=activeMachine?.id===machine.id;
+    const first=disks.find(disk=>disk.id===machine.diskId);
+    const second=disks.find(disk=>disk.id===machine.secondaryDiskId);
+    const floppy=disks.find(disk=>disk.id===machine.floppyDiskId);
+    const source=machine.bootSource?.label || "Без установочного носителя";
+    const bootValue=machine.bootSource?.type==="catalog-disk"?"catalog-disk":
+      machine.bootSource?.type==="catalog"?`catalog:${machine.bootSource.osId}`:
+      machine.bootSource?.type==="catalog-floppy"?`catalog:${machine.bootSource.osId}`:
+      machine.bootSource?.type==="media"?`media:${machine.bootSource.mediaId}`:"none";
+    const bootMediaOptions=
+      availableOS.filter(os=>!os.hda).map(os=>{
+        const value=`catalog:${os.id}`;
+        return `<option value="${escapeHtml(value)}"${bootValue===value?" selected":""}>${escapeHtml(os.name)} · ${os.cdrom?"CD/DVD":"дискета"}</option>`;
+      }).join("")+
+      media.filter(item=>item.kind==="iso").map(item=>{
+        const value=`media:${item.id}`;
+        return `<option value="${escapeHtml(value)}"${bootValue===value?" selected":""}>${escapeHtml(item.name)} · ISO</option>`;
+      }).join("");
+    const choices=`<option value="">${machine.diskId?"Отключить":"Не подключать"}</option>${diskSelectOptions}`;
+    return `<article class="manager-card" data-machine="${escapeHtml(machine.id)}">
+      <h3>${escapeHtml(machine.name)}</h3>
+      <p>${active?"● Запущена · ":""}${machine.memoryMiB} МБ RAM · ${escapeHtml(source)}</p>
+      <p>HDD: ${escapeHtml(first?.name||"не подключён")}${second?` · HDB: ${escapeHtml(second.name)}`:""}${floppy?` · FDD: ${escapeHtml(floppy.name)}`:""}</p>
+      <div class="manager-actions">
+        <button class="btn" data-action="${active?"stop":"start"}">${active?"Остановить":"Запустить"}</button>
+      </div>
+      <details class="machine-submenu">
+        <summary>Настроить машину</summary>
+        <div class="machine-settings">
+          <label class="field-label">CD/DVD или дискета</label>
+          <select class="select" data-role="boot"${active?" disabled":""}>
+            <option value="none">Отключить загрузочный носитель</option>
+            <option value="catalog-disk"${bootValue==="catalog-disk"?" selected":""}>Загрузочный HDD этой машины</option>
+            ${bootMediaOptions}
+          </select>
+          <label class="field-label">Приоритет загрузки</label>
+          <select class="select" data-role="boot-order"${active?" disabled":""}>
+            <option value="auto"${machine.bootOrder==="auto"?" selected":""}>Автоматически</option>
+            <option value="cdrom"${machine.bootOrder==="0x213"?" selected":""}>CD/DVD</option>
+            <option value="hdd"${machine.bootOrder==="0x312"?" selected":""}>Жёсткий диск</option>
+            <option value="floppy"${machine.bootOrder==="0x321"?" selected":""}>Дискета</option>
+          </select>
+          <label class="field-label">HDD</label><select class="select" data-role="disk-a"${active?" disabled":""}>${choices}</select>
+          <label class="field-label">HDB</label><select class="select" data-role="disk-b"${active?" disabled":""}><option value="">Не подключать</option>${diskSelectOptions}</select>
+          <label class="field-label">Дискета (FDD)</label><select class="select" data-role="floppy"${active?" disabled":""}><option value="">Не подключать</option>${diskSelectOptions}</select>
+          <label class="field-label">Название машины</label><input class="select" data-role="name" maxlength="80" value="${escapeHtml(machine.name)}"${active?" disabled":""}>
+          <label class="field-label">Оперативная память</label><select class="select" data-role="memory"${active?" disabled":""}>
+            ${[64,128,256,512,1024].map(size=>`<option value="${size}"${machine.memoryMiB===size?" selected":""}>${size} МБ</option>`).join("")}
+          </select>
+          <div class="manager-actions">
+            <button class="btn sec" data-action="save-disks"${active?" disabled":""}>Сохранить изменения</button>
+            <button class="btn sec danger" data-action="delete"${active?" disabled":""}>Удалить машину</button>
+          </div>
+        </div>
+      </details>
+    </article>`;
+  }).join(""):`<div class="empty">Машин пока нет. Создайте первую машину.</div>`)+`
+    <button class="manager-card create-card" type="button" data-manager-action="create-machine">
+      <span class="create-icon">+</span><strong>Создать машину</strong><span>Настроить новую виртуальную машину</span>
+    </button>`;
+  for(const card of $("machineList").querySelectorAll("[data-machine]")){
+    const machine=machines.find(item=>item.id===card.dataset.machine);
+    card.querySelector("[data-role='disk-a']").value=machine?.diskId||"";
+    card.querySelector("[data-role='disk-b']").value=machine?.secondaryDiskId||"";
+    card.querySelector("[data-role='floppy']").value=machine?.floppyDiskId||"";
+  }
+  const usages=new Map();
+  for(const machine of machines){
+    for(const id of [machine.diskId,machine.secondaryDiskId,machine.floppyDiskId].filter(Boolean)){
+      const users=usages.get(id)||[]; users.push(machine.name); usages.set(id,users);
+    }
+  }
+  $("diskList").innerHTML=`<h2 class="section-title">Виртуальные диски</h2>`+(disks.length?disks.map(disk=>{
+    const users=usages.get(disk.id)||[];
+    const lock=disk.lock?" · используется запущенной машиной":"";
+    return `<article class="manager-card" data-disk="${escapeHtml(disk.id)}">
+      <h3>${escapeHtml(disk.name)}</h3>
+      <p>Логический размер: ${formatBytes(disk.sizeBytes)} · данные: около ${formatBytes(disk.allocatedBlocks*disk.blockSize)}</p>
+      <p>${users.length?`Подключён: ${users.map(escapeHtml).join(", ")}`:"Не подключён к машинам"}${lock}</p>
+      <details class="machine-submenu">
+        <summary>Управление диском</summary>
+        <div class="machine-settings">
+          <p>Создан: ${new Date(disk.createdAt).toLocaleString()} · формат sparse-v1</p>
+          <input class="select" data-role="rename" maxlength="80" value="${escapeHtml(disk.name)}" aria-label="Новое название диска">
+          <div class="manager-actions">
+            <button class="btn sec" data-action="rename">Переименовать</button>
+            <button class="btn sec" data-action="export">Экспорт IMG</button>
+            <button class="btn sec danger" data-action="delete">Удалить</button>
+          </div>
+        </div>
+      </details>
+    </article>`;
+  }).join(""):`<div class="empty">Виртуальных дисков пока нет.</div>`)+`
+    <button class="manager-card create-card" type="button" data-manager-action="create-disk">
+      <span class="create-icon">+</span><strong>Создать диск</strong><span>Создать или импортировать образ</span>
+    </button>`;
+  const linkedMedia=new Set(machines.map(machine=>machine.mediaId).filter(Boolean));
+  $("mediaList").innerHTML=media.length?`<h2 class="section-title">Установочные ISO</h2>`+media.map(item=>
+    `<article class="manager-card"><h3>${escapeHtml(item.name)}</h3>
+      <p>${formatBytes(item.sizeBytes)} · сохранён в IndexedDB как установочный носитель</p>
+      <button class="btn sec danger" data-media-delete="${escapeHtml(item.id)}"${linkedMedia.has(item.id)||activeMachine?.mediaId===item.id?" disabled":""}>Удалить ISO</button>
+    </article>`).join(""):"";
+}
+
+$("machineForm").addEventListener("submit",async event=>{
+  event.preventDefault();
+  try{
+    const name=$("machineName").value.trim();
+    const memoryMiB=Number($("machineRam").value);
+    let diskId=$("machineDisk").value||null;
+    let secondaryDiskId=$("machineSecondDisk").value||null;
+    let floppyDiskId=null;
+    if(diskId&&(diskId===secondaryDiskId||diskId===floppyDiskId)||secondaryDiskId&&secondaryDiskId===floppyDiskId) throw new Error("Нельзя подключить один диск дважды.");
+    const sourceValue=$("machineBoot").value;
+    let bootSource=null,mediaId=null;
+    if(sourceValue.startsWith("catalog:")){
+      const os=OS.find(item=>item.id===sourceValue.slice(8));
+      if(!os) throw new Error("Выбранный образ ОС недоступен.");
+      const drive=os.cdrom?"cdrom":os.hda?"hda":"fda";
+      if(drive==="hda"){
+        showManagerMessage(`Импортируется образ ${os.name} в новый динамический диск…`);
+        const bootDisk=await vmStorage.importUrlDisk(os.hda.url,`${name} — системный диск`,(loaded,total)=>{
+          showManagerMessage(`Импорт ${os.name}: ${formatBytes(loaded)}${total?` / ${formatBytes(total)}`:""}`);
+        });
+        if(diskId){ secondaryDiskId=diskId; diskId=bootDisk.id; }
+        else diskId=bootDisk.id;
+        bootSource={type:"catalog-disk",osId:os.id,label:os.name};
+      }else if(drive==="cdrom"){
+        showManagerMessage(`Загрузка ISO ${os.name} в IndexedDB…`);
+        const imported=await vmStorage.importUrlMedia(os.cdrom.url,`${os.name}.iso`,(loaded,total)=>{
+          showManagerMessage(`Загрузка ISO: ${formatBytes(loaded)}${total?` / ${formatBytes(total)}`:""}`);
+        });
+        mediaId=imported.id;
+        bootSource={type:"media",mediaId,label:os.name};
+      }else{
+        showManagerMessage(`Импортируется загрузочная дискета ${os.name}…`);
+        const floppyDisk=await vmStorage.importUrlDisk(os.fda.url,`${name} — дискета`,(loaded,total)=>{
+          showManagerMessage(`Импорт дискеты: ${formatBytes(loaded)}${total?` / ${formatBytes(total)}`:""}`);
+        });
+        floppyDiskId=floppyDisk.id;
+        bootSource={type:"catalog-floppy",osId:os.id,label:os.name};
+      }
+    }else if(sourceValue.startsWith("media:")){
+      mediaId=sourceValue.slice(6);
+      const item=(await vmStorage.listMedia()).find(value=>value.id===mediaId);
+      if(!item||item.kind!=="iso") throw new Error("Выбранный ISO не найден.");
+      bootSource={type:"media",mediaId,label:item.name};
+    }
+    if(diskId&&(diskId===secondaryDiskId||diskId===floppyDiskId)||secondaryDiskId&&secondaryDiskId===floppyDiskId) throw new Error("Один диск нельзя подключить дважды.");
+    const machine={
+      id:`vm-${crypto.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`}`,
+      name,memoryMiB,diskId,secondaryDiskId,floppyDiskId,mediaId,bootSource,
+      bootOrder:$("machineBootOrder").value==="auto"?"auto":
+        ({cdrom:"0x213",hdd:"0x312",floppy:"0x321"})[$("machineBootOrder").value],
+      createdAt:Date.now(),
+    };
+    await vmStorage.saveMachine(machine);
+    $("machineName").value="";
+    $("machineCreate").hidden=true;
+    $("machineList").hidden=false;
+    showManagerMessage("Машина создана.");
+    await refreshManagerData();
+  }catch(error){ showManagerError(error); }
+});
+
+$("diskForm").addEventListener("submit",async event=>{
+  event.preventDefault();
+  try{
+    const initializeMbr=$("diskInitializeMbr").checked;
+    await vmStorage.createDisk($("diskName").value,Number($("diskSize").value)*1024**3,initializeMbr);
+    $("diskName").value="";
+    $("diskInitializeMbr").checked=false;
+    showManagerMessage(initializeMbr
+      ? "Динамический диск создан с основным MBR-разделом. При установке ОС выберите его и отформатируйте."
+      : "Пустой динамический диск создан; данные не выделялись.");
+    $("diskCreate").hidden=true;
+    $("diskList").hidden=false;
+    await refreshManagerData();
+  }catch(error){ showManagerError(error); }
+});
+
+$("diskImportButton").onclick=async()=>{
+  const file=$("diskImportFile").files?.[0];
+  if(!file){ showManagerError(new Error("Сначала выберите IMG или ISO.")); return; }
+  const extension=file.name.split(".").pop().toLowerCase();
+  $("diskImportButton").disabled=true;
+  try{
+    if(extension==="iso"){
+      await vmStorage.addMedia(file,"iso");
+      $("diskImportProgress").textContent=`ISO сохранён: ${file.name} (${formatBytes(file.size)}).`;
+    }else if(["img","ima","dsk","bin"].includes(extension)){
+      const disk=await vmStorage.importDiskFile(file,file.name.replace(/\.[^.]+$/,""),(loaded,total)=>{
+        $("diskImportProgress").textContent=`Импорт диска: ${formatBytes(loaded)} / ${formatBytes(total)}`;
+      });
+      $("diskImportProgress").textContent=`Диск импортирован: ${disk.name} · ${formatBytes(disk.allocatedBlocks*disk.blockSize)} занято из ${formatBytes(disk.sizeBytes)}.`;
+    }else throw new Error("Поддерживаются только IMG/IMA/DSK/BIN и ISO.");
+    $("diskImportFile").value="";
+    $("diskCreate").hidden=true;
+    $("diskList").hidden=false;
+    await refreshManagerData();
+  }catch(error){ showManagerError(error); }
+  finally{ $("diskImportButton").disabled=false; }
 };
+
+$("machineList").onclick=async event=>{
+  const createButton=event.target.closest("[data-manager-action='create-machine']");
+  if(createButton){
+    $("machineList").hidden=true;
+    $("machineCreate").hidden=false;
+    $("machineCreate").scrollIntoView({behavior:"smooth",block:"start"});
+    $("machineName").focus();
+    return;
+  }
+  const button=event.target.closest("button[data-action]");
+  if(!button) return;
+  const card=button.closest("[data-machine]");
+  const machine=(await vmStorage.listMachines()).find(item=>item.id===card?.dataset.machine);
+  if(!machine) return;
+  try{
+    switch(button.dataset.action){
+      case "start": await launchMachine(machine); break;
+      case "stop": await exit(); break;
+      case "save-disks":{
+        const diskId=card.querySelector("[data-role='disk-a']").value||null;
+        const secondaryDiskId=card.querySelector("[data-role='disk-b']").value||null;
+        let floppyDiskId=card.querySelector("[data-role='floppy']").value||null;
+        const name=card.querySelector("[data-role='name']").value.trim();
+        const memoryMiB=Number(card.querySelector("[data-role='memory']").value);
+        const bootValue=card.querySelector("[data-role='boot']").value;
+        let bootSource=null,mediaId=null;
+        if(bootValue==="catalog-disk"){
+          bootSource=machine.bootSource?.type==="catalog-disk"?machine.bootSource:null;
+        }else if(bootValue.startsWith("catalog:")){
+          const os=OS.find(item=>item.id===bootValue.slice(8));
+          if(!os||os.hda) throw new Error("Выбранный загрузочный образ недоступен.");
+          if(os.cdrom){
+            const imported=await vmStorage.importUrlMedia(os.cdrom.url,`${os.name}.iso`,(loaded,total)=>{
+              showManagerMessage(`Загрузка ISO: ${formatBytes(loaded)}${total?` / ${formatBytes(total)}`:""}`);
+            });
+            mediaId=imported.id;
+            bootSource={type:"media",mediaId,label:os.name};
+            floppyDiskId=null;
+          }else if(machine.bootSource?.type==="catalog-floppy"&&machine.bootSource.osId===os.id){
+            floppyDiskId=machine.floppyDiskId;
+            bootSource=machine.bootSource;
+          }else{
+            const floppyDisk=await vmStorage.importUrlDisk(os.fda.url,`${name||machine.name} — дискета`);
+            floppyDiskId=floppyDisk.id;
+            bootSource={type:"catalog-floppy",osId:os.id,label:os.name};
+          }
+        }else if(bootValue.startsWith("media:")){
+          mediaId=bootValue.slice(6);
+          const media=(await vmStorage.getMedia(mediaId));
+          if(media.kind!=="iso") throw new Error("Выбранный ISO не найден.");
+          bootSource={type:"media",mediaId,label:media.name};
+          floppyDiskId=null;
+        }
+        if(bootValue==="catalog-disk") floppyDiskId=null;
+        if(!name) throw new Error("Укажите название машины.");
+        if(diskId&&(diskId===secondaryDiskId||diskId===floppyDiskId)||secondaryDiskId&&secondaryDiskId===floppyDiskId) throw new Error("Нельзя подключить один диск дважды.");
+        if(machine.bootSource?.type==="catalog-disk"&&diskId!==machine.diskId) throw new Error("Этот образ служит загрузочным диском. Сначала выберите другой образ загрузки.");
+        const order=card.querySelector("[data-role='boot-order']").value;
+        const bootOrder=order==="auto"?"auto":({cdrom:"0x213",hdd:"0x312",floppy:"0x321"})[order];
+        await vmStorage.saveMachine({...machine,name,memoryMiB,diskId,secondaryDiskId,floppyDiskId,mediaId,bootSource,bootOrder});
+        await refreshManagerData();
+        break;
+      }
+      case "delete":
+        if(!await askConfirmation({
+          title:"Удалить машину?",
+          message:`Машина «${machine.name}» будет удалена. Её виртуальные диски останутся в разделе «Мои диски».`,
+          confirmLabel:"Удалить",
+          destructive:true,
+        })) return;
+        await vmStorage.deleteMachine(machine.id);
+        await refreshManagerData();
+        break;
+    }
+  }catch(error){ showManagerError(error); }
+};
+
+$("diskList").onclick=async event=>{
+  if(event.target.closest("[data-manager-action='create-disk']")){
+    $("diskList").hidden=true;
+    $("mediaList").hidden=true;
+    $("diskCreate").hidden=false;
+    $("diskCreate").scrollIntoView({behavior:"smooth",block:"start"});
+    $("diskName").focus();
+    return;
+  }
+  const button=event.target.closest("button[data-action]");
+  if(!button) return;
+  const card=button.closest("[data-disk]");
+  const id=card?.dataset.disk;
+  if(!id) return;
+  try{
+    if(button.dataset.action==="rename"){
+      await vmStorage.renameDisk(id,card.querySelector("[data-role='rename']").value);
+    }else if(button.dataset.action==="delete"){
+      const disk=await vmStorage.getDisk(id);
+      const machines=await vmStorage.listMachines();
+      const linked=machines.filter(machine=>[machine.diskId,machine.secondaryDiskId,machine.floppyDiskId].includes(id));
+      const detachNotice=linked.length
+        ? ` Он будет отключён от машин: ${linked.map(machine=>`«${machine.name}»`).join(", ")}.`
+        : "";
+      if(!await askConfirmation({
+        title:"Удалить виртуальный диск?",
+        message:`Диск «${disk.name}» и все его данные будут удалены без возможности восстановления.${detachNotice}`,
+        confirmLabel:"Удалить",
+        destructive:true,
+      })) return;
+      await vmStorage.deleteDisk(id);
+    }else if(button.dataset.action==="export"){
+      await exportDisk(id);
+    }
+    await refreshManagerData();
+  }catch(error){ showManagerError(error); }
+};
+
+document.querySelectorAll("[data-close-submenu]").forEach(button=>{
+  button.onclick=()=>{
+    if(button.dataset.closeSubmenu==="machine"){
+      $("machineCreate").hidden=true;
+      $("machineList").hidden=false;
+    }else{
+      $("diskCreate").hidden=true;
+      $("diskList").hidden=false;
+      $("mediaList").hidden=false;
+    }
+  };
+});
+
+$("mediaList").onclick=async event=>{
+  const button=event.target.closest("button[data-media-delete]");
+  if(!button) return;
+  if(!await askConfirmation({
+    title:"Удалить ISO?",
+    message:"Сохранённый установочный образ будет удалён из хранилища.",
+    confirmLabel:"Удалить",
+    destructive:true,
+  })) return;
+  try{
+    await vmStorage.deleteMedia(button.dataset.mediaDelete);
+    await refreshManagerData();
+  }catch(error){ showManagerError(error); }
+};
+
+async function exportDisk(id){
+  const disk=await vmStorage.getDisk(id);
+  const filename=`${disk.name.replace(/[\\/:*?"<>|]+/g,"_")}.img`;
+  const device=new OSEmuStorage.IndexedDBDiskDevice(vmStorage,id);
+  await device.load();
+  if(window.showSaveFilePicker){
+    const handle=await window.showSaveFilePicker({suggestedName:filename,types:[{description:"Raw disk image",accept:{"application/octet-stream":[".img"]}}]});
+    const writable=await handle.createWritable();
+    try{
+      for(let offset=0;offset<disk.sizeBytes;offset+=OSEmuStorage.constants.blockSize){
+        const length=Math.min(OSEmuStorage.constants.blockSize,disk.sizeBytes-offset);
+        await writable.write(await device.readRange(offset,length));
+      }
+      await writable.close();
+    }catch(error){ await writable.abort().catch(()=>{}); throw error; }
+    return;
+  }
+  if(disk.sizeBytes>64*1024**2) throw new Error("Потоковый экспорт больших IMG не поддерживается этим браузером. Откройте приложение в браузере с File System Access API.");
+  if(!await askConfirmation({
+    title:"Экспорт диска",
+    message:`Для экспорта будет создана временная копия размером ${formatBytes(disk.sizeBytes)} в памяти браузера.`,
+    confirmLabel:"Экспортировать",
+  })) return;
+  const chunks=[];
+  for(let offset=0;offset<disk.sizeBytes;offset+=OSEmuStorage.constants.blockSize){
+    chunks.push(await device.readRange(offset,Math.min(OSEmuStorage.constants.blockSize,disk.sizeBytes-offset)));
+  }
+  const link=document.createElement("a");
+  link.href=URL.createObjectURL(new Blob(chunks,{type:"application/octet-stream"}));
+  link.download=filename;
+  link.click();
+  setTimeout(()=>URL.revokeObjectURL(link.href),60_000);
+}
+
 $("groups").onclick = e => {
   const c = e.target.closest(".cell"); if(!c) return;
   haptic(); openSheet(OS.find(o=>o.id===c.dataset.id));
@@ -352,7 +951,8 @@ $("sGo").onclick = ()=>launch(cur);
 $("sShare").onclick = ()=>share(cur);
 
 //ЭМУЛЯТОР
-let emu = null;
+let emu = null, activeMachine=null, activeDiskLocks=[], diskLockHeartbeat=null, diskLockRefresh=null, activeLockOwner=null;
+let activeDiskDevices=[],diskDiagnosticsTimer=null,exiting=false;
 function show(view){ document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on",v.id===view)); }
 
 function launch(os){
@@ -388,7 +988,143 @@ function launch(os){
   setupTouchpad();
   history.replaceState(null,"","#"+os.id);
 }
-function exit(){
+async function launchMachine(machine){
+  if(emu||exiting) throw new Error("Сначала дождитесь полной остановки уже запущенной машины.");
+  const owner=`${machine.id}:${crypto.randomUUID?.()||Date.now()}`;
+  const diskIds=[machine.diskId,machine.secondaryDiskId,machine.floppyDiskId].filter(Boolean);
+  const locks=await vmStorage.acquireLocks(diskIds,owner);
+  activeMachine=machine; activeDiskLocks=locks; activeLockOwner=owner;
+  activeDiskDevices=[];
+  show("run"); $("title").textContent=machine.name;
+  $("load").style.display="grid"; $("loadBar").style.width="0"; $("loadTxt").textContent="Подключение виртуальных дисков…";
+  if(tg){
+    tg.BackButton.show(); tg.BackButton.onClick(exit);
+    try{ tg.requestFullscreen(); }catch{}
+    try{ tg.enableClosingConfirmation(); }catch{}
+  }
+  try{
+    const opts={
+      wasm_path:CDN.wasm,
+      bios:{url:CDN.bios},vga_bios:{url:CDN.vga},
+      screen_container:$("screen"),
+      memory_size:machine.memoryMiB*1024*1024,vga_memory_size:8*1024*1024,
+      boot_order:machine.bootOrder==="auto"?Number(bootDeviceFor(machine)):Number(machine.bootOrder),
+      autostart:true,
+    };
+    if(machine.diskId){
+      const device=new OSEmuStorage.IndexedDBDiskDevice(vmStorage,machine.diskId);
+      device.label="HDD";
+      activeDiskDevices.push(device);
+      device.onerror=error=>{
+        $("load").style.display="grid";
+        $("loadTxt").textContent=`Ошибка записи виртуального диска: ${error.message}`;
+        emu?.stop();
+      };
+      opts.hda={block_device:device};
+    }
+    if(machine.secondaryDiskId){
+      const device=new OSEmuStorage.IndexedDBDiskDevice(vmStorage,machine.secondaryDiskId);
+      device.label="HDB";
+      activeDiskDevices.push(device);
+      device.onerror=error=>{
+        $("load").style.display="grid";
+        $("loadTxt").textContent=`Ошибка записи виртуального диска: ${error.message}`;
+        emu?.stop();
+      };
+      opts.hdb={block_device:device};
+    }
+    if(machine.floppyDiskId){
+      const device=new OSEmuStorage.IndexedDBDiskDevice(vmStorage,machine.floppyDiskId);
+      device.label="FDD";
+      activeDiskDevices.push(device);
+      device.onerror=error=>{
+        $("load").style.display="grid";
+        $("loadTxt").textContent=`Ошибка записи загрузочной дискеты: ${error.message}`;
+        emu?.stop();
+      };
+      opts.fda={block_device:device};
+    }
+    const source=machine.bootSource;
+    if(source?.type==="catalog"){
+      opts[source.drive]={url:source.url};
+    }else if(source?.type==="media"){
+      const device=new OSEmuStorage.IndexedDBMediaDevice(vmStorage,source.mediaId);
+      device.label="CD/DVD";
+      activeDiskDevices.push(device);
+      opts.cdrom={block_device:device};
+    }
+    emu=new V86(opts);
+    emu.add_listener("download-progress",progress=>{
+      if(progress.total) $("loadBar").style.width=`${Math.round(progress.loaded/progress.total*100)}%`;
+      $("loadTxt").textContent=`Загрузка компонентов ${progress.file_index+1}/${progress.file_count}`;
+    });
+    emu.add_listener("download-error",()=>{
+      $("loadTxt").textContent="Не удалось загрузить компоненты v86 или загрузочный образ.";
+      tg?.HapticFeedback?.notificationOccurred("error");
+    });
+    emu.add_listener("emulator-started",()=>{
+      $("load").style.display="none"; applyScale();
+      tg?.HapticFeedback?.notificationOccurred("success");
+    });
+    setupTouchpad();
+    $("diskDiagnostics").open=false;
+    updateDiskDiagnostics();
+    diskDiagnosticsTimer=setInterval(updateDiskDiagnostics,1000);
+    if(locks.length){
+      diskLockHeartbeat=setInterval(()=>{
+        const refresh=vmStorage.refreshLocks(locks,owner);
+        diskLockRefresh=refresh;
+        refresh.then(valid=>{
+          if(!valid){ showManagerError(new Error("Потеряна блокировка виртуального диска; машина остановлена.")); void exit(); }
+        }).catch(error=>{ showManagerError(error); void exit(); }).finally(()=>{
+          if(diskLockRefresh===refresh) diskLockRefresh=null;
+        });
+      },10_000);
+    }
+    history.replaceState(null,"",`#${machine.id}`);
+  }catch(error){
+    emu?.stop();
+    try{ await Promise.all(activeDiskDevices.map(device=>device.close())); }
+    catch(closeError){ console.error("Could not close virtual disk devices after startup failed.",closeError); }
+    try{ emu?.destroy(); }catch{}
+    emu=null;
+    if(diskLockHeartbeat) clearInterval(diskLockHeartbeat);
+    if(diskDiagnosticsTimer) clearInterval(diskDiagnosticsTimer);
+    diskLockHeartbeat=null;
+    diskLockRefresh=null;
+    diskDiagnosticsTimer=null;
+    activeMachine=null; activeDiskLocks=[]; activeLockOwner=null;
+    activeDiskDevices=[];
+    await vmStorage.releaseLocks(locks,owner).catch(releaseError=>console.error("Could not release disk locks.",releaseError));
+    show("list");
+    throw error;
+  }
+}
+function updateDiskDiagnostics(){
+  const diagnostics=activeDiskDevices.map(device=>device.getDiagnostics());
+  const cache=diagnostics.reduce((total,item)=>total+item.cacheBytes,0);
+  const cacheLimit=diagnostics.reduce((total,item)=>total+item.cacheLimitBytes,0);
+  const temporary=diagnostics.reduce((max,item)=>Math.max(max,item.temporaryBytes),0);
+  const peak=diagnostics.reduce((max,item)=>Math.max(max,item.peakTemporaryBytes),0);
+  const writes=activeDiskDevices.map((device,index)=>{
+    const item=diagnostics[index];
+    return device instanceof OSEmuStorage.IndexedDBMediaDevice
+      ? `${device.label||"ISO"}: чтение ${formatBytes(item.readBytes)}`
+      : `${device.label||"Диск"}: записано и сохранено ${formatBytes(item.writtenBytes)}`;
+  });
+  $("diskDiagnosticsText").textContent=diagnostics.length
+    ? `${writes.join(". ")}. Кеш блоков: ${formatBytes(cache)} / ${formatBytes(cacheLimit)}. Текущие временные буферы: ${formatBytes(temporary)}; максимум с запуска: ${formatBytes(peak)}.`
+    : "Виртуальные диски не подключены.";
+}
+async function exit(){
+  if(exiting) return;
+  exiting=true;
+  if(diskLockHeartbeat) clearInterval(diskLockHeartbeat);
+  diskLockHeartbeat=null;
+  if(diskLockRefresh){
+    try{ await diskLockRefresh; }catch(error){ showManagerError(error); }
+    diskLockRefresh=null;
+  }
   clearTimeout(clickMouseTimer);
   clickMouseTimer = null;
   panelMouseButtons.fill(false);
@@ -396,8 +1132,22 @@ function exit(){
   clickMouseButtons.fill(false);
   sendMouseButtons();
   updateMouseButtonUI();
+  emu?.stop();
+  try{ await Promise.all(activeDiskDevices.map(device=>device.close())); }
+  catch(error){ showManagerError(error); }
   try{ emu?.destroy(); }catch{}
   emu = null;
+  if(diskDiagnosticsTimer) clearInterval(diskDiagnosticsTimer);
+  diskDiagnosticsTimer=null;
+  activeDiskDevices=[];
+  const lockIds=activeDiskLocks, lockOwner=activeLockOwner;
+  activeMachine=null; activeDiskLocks=[]; activeLockOwner=null;
+  if(lockOwner){
+    try{
+      await vmStorage.releaseLocks(lockIds,lockOwner);
+      await refreshManagerData();
+    }catch(error){ showManagerError(error); }
+  }
   $("screen").innerHTML = "<div></div><canvas></canvas>";
   show("list");
   if (tg){
@@ -405,9 +1155,39 @@ function exit(){
     try{ tg.exitFullscreen(); }catch{}
     try{ tg.disableClosingConfirmation(); }catch{}
   }
+  exiting=false;
 }
-$("bReset").onclick = ()=>{ haptic("rigid"); emu?.restart(); };
+addEventListener("pagehide",()=>{ if(activeMachine) void exit(); });
+$("bReset").onclick = async()=>{
+  haptic("rigid");
+  if(!emu) return;
+  const instance=emu;
+  instance.stop();
+  try{
+    await Promise.all(activeDiskDevices.map(device=>device.flush()));
+    if(emu===instance) instance.restart();
+  }catch(error){
+    showManagerError(error);
+    await exit();
+  }
+};
 $("bShare").onclick = ()=>share(cur);
+$("bFullscreen").onclick=()=>void toggleFullscreen();
+async function toggleFullscreen(){
+  try{
+    if(tg?.isFullscreen&&typeof tg.exitFullscreen==="function"){
+      tg.exitFullscreen();
+      return;
+    }
+    if(typeof tg?.requestFullscreen==="function"){
+      tg.requestFullscreen();
+      return;
+    }
+    if(document.fullscreenElement) await document.exitFullscreen();
+    else if($("run").requestFullscreen) await $("run").requestFullscreen();
+    else showManagerMessage("Полноэкранный режим недоступен в этом браузере.");
+  }catch(error){ showManagerError(error); }
+}
 if(!inTG){ addEventListener("keydown",e=>{ if(e.key==="Escape" && $("run").classList.contains("on")) exit(); }); }
 
 /*тачпад:*/
@@ -594,10 +1374,11 @@ const KEYDEFS = [
   ["esc",   "Esc",               ()=>key(0x01)],
   ["tab",   "Tab",               ()=>key(0x0F)],
   ["enter", "Enter",             ()=>key(0x1C)],
-  ["left",  "← Стрелка",         ()=>key(0x4B,true)],
-  ["up",    "↑ Стрелка",         ()=>key(0x48,true)],
-  ["down",  "↓ Стрелка",         ()=>key(0x50,true)],
-  ["right", "→ Стрелка",         ()=>key(0x4D,true)],
+  ["c",     "C",                 ()=>key(0x2E)],
+  ["left",  "←",                 ()=>key(0x4B,true)],
+  ["up",    "↑",                 ()=>key(0x48,true)],
+  ["down",  "↓",                 ()=>key(0x50,true)],
+  ["right", "→",                 ()=>key(0x4D,true)],
   ["cad",   "Ctrl+Alt+Del",      ()=>[0x1D,0x38,0xE0,0x53,0xE0,0xD3,0xB8,0x9D]],
   ["altab", "Alt+Tab",           ()=>[0x38,0x0F,0x8F,0xB8]],
   ["f1",    "F1",                ()=>key(0x3B)],
