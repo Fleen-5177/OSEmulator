@@ -109,12 +109,12 @@
         <option value="left">Слева</option>
         <option value="right">Справа</option>
       </select>
-      <div class="custom-note">На экране удерживай палец около 0,4 с, чтобы зажать ЛКМ (двумя пальцами — ПКМ). Кнопки ЛКМ/ПКМ на панели переключают удержание, а курсор перемещается касанием по экрану.</div>
+      <div class="custom-note">На ПК перемещай курсор мышью, нажимай ЛКМ/ПКМ и используй колесо прокрутки. На сенсорном экране удерживай палец около 0,4 с, чтобы зажать ЛКМ (двумя пальцами — ПКМ). Кнопки ЛКМ/ПКМ на панели переключают удержание.</div>
       <label class="field-label">Кнопки управления в эмуляторе</label>
       <div id="setKeys"></div>
       <button class="btn sec" id="setReset" type="button">Сбросить настройки</button>
       <h2>О эмуляторе</h2>
-      <p>OSEmulator 1.0.0 | <a href="https://github.com/Fleen-5177/OSEmulator" target="_blank">GitHub</a> | By @Fleen5177</p>
+      <p>OSEmulator 1.0.1 | <a href="https://github.com/Fleen-5177/OSEmulator" target="_blank">GitHub</a> | By @Fleen5177</p>
     </div>
   </div>
 </section>
@@ -235,7 +235,7 @@ const TRANSLATIONS = {
   "Панель кнопок в горизонтали":"Landscape button panel",
   "Слева":"Left",
   "Справа":"Right",
-  "На экране удерживай палец около 0,4 с, чтобы зажать ЛКМ (двумя пальцами — ПКМ). Кнопки ЛКМ/ПКМ на панели переключают удержание, а курсор перемещается касанием по экрану.":"Touch and hold the screen for about 0.4 seconds to hold the left mouse button (use two fingers for the right button). The LMB/RMB panel buttons toggle holding; move the cursor by touching the screen.",
+  "На ПК перемещай курсор мышью, нажимай ЛКМ/ПКМ и используй колесо прокрутки. На сенсорном экране удерживай палец около 0,4 с, чтобы зажать ЛКМ (двумя пальцами — ПКМ). Кнопки ЛКМ/ПКМ на панели переключают удержание.":"On PC, move the cursor with the mouse, use the left/right buttons, and scroll the wheel. On touchscreens, hold for about 0.4 seconds to hold the left mouse button (use two fingers for the right button). The LMB/RMB panel buttons toggle holding.",
   "Кнопки управления в эмуляторе":"Emulator controls",
   "Сбросить настройки":"Reset settings",
   "О эмуляторе":"About the emulator",
@@ -375,7 +375,7 @@ const TRANSLATIONS = {
   "Компоненты виртуальной машины":"Virtual machine components",
   "Полноэкранный режим недоступен в этом браузере.":"Fullscreen mode is not available in this browser.",
   "Клавиатура":"Keyboard",
-  "Нажми, чтобы зажать; нажми ещё раз, чтобы отпустить. Перемещай курсор касанием экрана.":"Tap to hold; tap again to release. Move the cursor by touching the screen.",
+  "Нажми, чтобы зажать; нажми ещё раз, чтобы отпустить. Перемещай курсор мышью или касанием экрана.":"Click to hold; click again to release. Move the cursor with the mouse or by touching the screen.",
   "Виртуальные диски":"Virtual disks",
   "Настроить новую виртуальную машину":"Set up a new virtual machine",
   "Версия ":"Version ",
@@ -1161,6 +1161,7 @@ async function exit(){
   clickMouseTimer = null;
   panelMouseButtons.fill(false);
   touchMouseButtons.fill(false);
+  physicalMouseButtons.fill(false);
   clickMouseButtons.fill(false);
   sendMouseButtons();
   updateMouseButtonUI();
@@ -1225,12 +1226,30 @@ if(!inTG){ addEventListener("keydown",e=>{ if(e.key==="Escape" && $("run").class
 /*тачпад:*/
 const panelMouseButtons = [false,false,false];
 const touchMouseButtons = [false,false,false];
+const physicalMouseButtons = [false,false,false];
 const clickMouseButtons = [false,false,false];
 let clickMouseTimer = null;
 function sendMouseButtons(){
   if(!emu) return;
-  emu.bus.send("mouse-click", panelMouseButtons.map((pressed,i)=>pressed||touchMouseButtons[i]||clickMouseButtons[i]));
+  emu.bus.send("mouse-click", panelMouseButtons.map((pressed,i)=>pressed||touchMouseButtons[i]||physicalMouseButtons[i]||clickMouseButtons[i]));
 }
+function releasePhysicalMouseButtons(){
+  if(!physicalMouseButtons.some(Boolean)) return;
+  physicalMouseButtons.fill(false);
+  sendMouseButtons();
+}
+function setPhysicalMouseButton(button, pressed){
+  if(button<0||button>2||physicalMouseButtons[button]===pressed) return;
+  physicalMouseButtons[button]=pressed;
+  sendMouseButtons();
+}
+addEventListener("blur",releasePhysicalMouseButtons);
+addEventListener("pointerup",event=>{
+  if(event.pointerType==="mouse") setPhysicalMouseButton(event.button,false);
+});
+addEventListener("pointercancel",event=>{
+  if(event.pointerType==="mouse") releasePhysicalMouseButtons();
+});
 function setTouchMouseButton(index, pressed){
   touchMouseButtons[index] = pressed;
   sendMouseButtons();
@@ -1249,8 +1268,39 @@ function updateMouseButtonUI(){
 }
 function setupTouchpad(){
   const st = $("stage");
-  let last=null, start=null, moved=false, fingers=0, t0=0, holdTimer=null, held=false, gestureButton=0;
+  let last=null, lastMouse=null, start=null, moved=false, fingers=0, t0=0, holdTimer=null, held=false, gestureButton=0;
   emu.add_listener("emulator-ready", ()=>{ try{ emu.mouse_set_enabled(false); }catch{} });
+  st.onpointerdown = event=>{
+    if(event.pointerType!=="mouse"||!emu) return;
+    if(event.target instanceof Element && event.target.closest("#diskDiagnostics,#load")) return;
+    event.preventDefault();
+    lastMouse={x:event.clientX,y:event.clientY};
+    setPhysicalMouseButton(event.button,true);
+    if(st.setPointerCapture) st.setPointerCapture(event.pointerId);
+  };
+  st.onpointermove = event=>{
+    if(event.pointerType!=="mouse"||!emu) return;
+    if(event.target instanceof Element && event.target.closest("#diskDiagnostics,#load")) return;
+    const dx=typeof event.movementX==="number" ? event.movementX : lastMouse ? event.clientX-lastMouse.x : 0;
+    const dy=typeof event.movementY==="number" ? event.movementY : lastMouse ? event.clientY-lastMouse.y : 0;
+    lastMouse={x:event.clientX,y:event.clientY};
+    if(dx||dy) emu.bus.send("mouse-delta",[dx*settings.sens,-dy*settings.sens]);
+    event.preventDefault();
+  };
+  st.onpointercancel = event=>{
+    if(event.pointerType==="mouse") releasePhysicalMouseButtons();
+  };
+  st.onpointerleave = event=>{
+    if(event.pointerType==="mouse"&&!physicalMouseButtons.some(Boolean)) lastMouse=null;
+  };
+  st.oncontextmenu = event=>{
+    if(event.target instanceof Element && event.target.closest("#screen")) event.preventDefault();
+  };
+  st.onwheel = event=>{
+    if(!emu || event.deltaY===0 || event.target instanceof Element && event.target.closest("#diskDiagnostics,#load")) return;
+    emu.bus.send("mouse-wheel",[event.deltaY>0?-1:1,0]);
+    event.preventDefault();
+  };
   const startHold = button=>{
     clearTimeout(holdTimer);
     gestureButton = button;
