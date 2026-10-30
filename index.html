@@ -75,7 +75,7 @@
         <h2>Импорт образа</h2>
         <p>IMG/raw импортируется в динамический HDD. ISO сохраняется как установочный CD/DVD.</p>
         <label class="field-label" for="diskImportFile">Файл IMG или ISO</label>
-        <input id="diskImportFile" class="file-input" type="file" accept=".img,.ima,.dsk,.bin,.iso,application/octet-stream">
+        <input id="diskImportFile" class="file-input" type="file">
         <button id="diskImportButton" class="btn sec" type="button">Импортировать</button>
         <div id="diskImportProgress" class="progress-text" aria-live="polite"></div>
       </div>
@@ -86,6 +86,11 @@
   <div id="settingsPanel" hidden>
     <div class="custom-card">
       <h2>Настройки</h2>
+      <label class="field-label" for="setLanguage">Язык приложения</label>
+      <select id="setLanguage" class="select">
+        <option value="ru">Русский</option>
+        <option value="en">English</option>
+      </select>
       <p>Настройки сохраняются в Telegram Cloud. Если он недоступен, используется хранилище браузера.</p>
       <label class="field-label" for="setSens">Чувствительность мыши</label>
       <div class="sens-row">
@@ -109,7 +114,7 @@
       <div id="setKeys"></div>
       <button class="btn sec" id="setReset" type="button">Сбросить настройки</button>
       <h2>О эмуляторе</h2>
-      <p>Версия 0.7.1 | <a href="https://github.com/Fleen-5177/OSEmulator" target="_blank">GitHub</a> | By @Fleen5177</p>
+      <p>OSEmulator 1.0.0 | <a href="https://github.com/Fleen-5177/OSEmulator" target="_blank">GitHub</a> | By @Fleen5177</p>
     </div>
   </div>
 </section>
@@ -169,9 +174,8 @@ const IMG = {
   windows101: "https://raw.githubusercontent.com/copy/images/master/windows101.img",
 };
 
-/* ============ РЕЕСТР ОС ============
-   Поля disk-образов (fda/hda/cdrom/bzimage) — это 1-в-1 опции конструктора V86.
-   Новые ОС копируй из массива профилей в src/browser/main.js репозитория copy/v86. */
+// ============ РЕЕСТР ОС ============
+// Поля disk-образов (fda/hda/cdrom/bzimage) — это 1-в-1 опции конструктора V86. 
 const OS = [
   {id:"kolibri", cat:"Лёгкие", name:"KolibriOS", emoji:"🐦", color:"#34c759", size:"1.3 МБ",
    desc:"Графическая ОС на ассемблере: приложения, игры, демо.", mem:64, fda:{url:IMG.kolibri}},
@@ -195,6 +199,251 @@ const inTG = !!(tg && tg.initData);
 const $ = id => document.getElementById(id);
 const haptic = (t="light") => tg?.HapticFeedback?.impactOccurred(t);
 const vmStorage = new OSEmuStorage.DiskStore();
+const LANGUAGE_KEY = "osemu_language";
+const TRANSLATIONS = {
+  "Каталог ОС":"OS catalog",
+  "Мои машины":"My machines",
+  "Мои диски":"My disks",
+  "Настройки":"Settings",
+  "Русский":"Russian",
+  "МБ":"MB",
+  "ГБ":"GB",
+  "КБ":"KB",
+  "ТБ":"TB",
+  " Б":" B",
+  "Поиск":"Search",
+  "Ничего не найдено":"No results found",
+  "Лёгкие":"Lightweight",
+  "Другие":"Other",
+  "Windows":"Windows",
+  "Linux":"Linux",
+  "Графическая ОС на ассемблере: приложения, игры, демо.":"An assembly-language graphical OS with apps, games, and demos.",
+  "Свободная DOS-совместимая ОС.":"A free DOS-compatible operating system.",
+  "Классическая DOS. Совместимость зависит от образа.":"Classic DOS. Compatibility depends on the disk image.",
+  "Компактный Linux для запуска в браузерном x86-эмуляторе.":"A lightweight Linux distribution for the browser-based x86 emulator.",
+  "Экспериментальная загрузка OpenBSD; может потребовать настройки.":"Experimental OpenBSD boot; may require configuration.",
+  "Историческая ОС для PDP-8; это не x86-ПК и она не загрузится как обычная ОС в v86.":"A historical OS for the PDP-8; it is not an x86 PC and cannot boot as a regular OS in v86.",
+  "Первая версия Windows (1985).":"The first version of Windows (1985).",
+  "Язык приложения":"App language",
+  "Настройки сохраняются в Telegram Cloud. Если он недоступен, используется хранилище браузера.":"Settings are saved to Telegram Cloud. Browser storage is used when it is unavailable.",
+  "Чувствительность мыши":"Mouse sensitivity",
+  "Масштаб экрана":"Screen scaling",
+  "По ширине экрана":"Fit to screen",
+  "Оригинал (1:1)":"Original (1:1)",
+  "Увеличить (1.5×)":"Zoom in (1.5×)",
+  "Увеличить (2×)":"Zoom in (2×)",
+  "Панель кнопок в горизонтали":"Landscape button panel",
+  "Слева":"Left",
+  "Справа":"Right",
+  "На экране удерживай палец около 0,4 с, чтобы зажать ЛКМ (двумя пальцами — ПКМ). Кнопки ЛКМ/ПКМ на панели переключают удержание, а курсор перемещается касанием по экрану.":"Touch and hold the screen for about 0.4 seconds to hold the left mouse button (use two fingers for the right button). The LMB/RMB panel buttons toggle holding; move the cursor by touching the screen.",
+  "Кнопки управления в эмуляторе":"Emulator controls",
+  "Сбросить настройки":"Reset settings",
+  "О эмуляторе":"About the emulator",
+  "Экран":"Fullscreen",
+  "Поделиться":"Share",
+  "Сброс":"Reset",
+  "Запуск…":"Starting…",
+  "Запустить":"Start",
+  "Поделиться ссылкой":"Share link",
+  "Отмена":"Cancel",
+  "Продолжить":"Continue",
+  "Виртуальные машины":"Virtual machines",
+  "Виртуальных дисков пока нет.":"No virtual disks yet.",
+  "Создать диск":"Create disk",
+  "Создать или импортировать образ":"Create or import an image",
+  "Установочные ISO":"Installation ISOs",
+  "не подключён":"not connected",
+  "Без установочного носителя":"No installation media",
+  "Отключить":"Disconnect",
+  "Не подключать":"Do not connect",
+  "Запущена · ":"Running · ",
+  "Остановить":"Stop",
+  "Настроить машину":"Configure machine",
+  "Отключить загрузочный носитель":"Disconnect boot media",
+  "Загрузочный HDD этой машины":"This machine's boot HDD",
+  "Приоритет загрузки":"Boot priority",
+  "Автоматически":"Automatic",
+  "Жёсткий диск":"Hard disk",
+  "Дискета":"Floppy disk",
+  "Название машины":"Machine name",
+  "Оперативная память":"Memory",
+  "Сохранить изменения":"Save changes",
+  "Удалить машину":"Delete machine",
+  "Машин пока нет. Создайте первую машину.":"No machines yet. Create your first machine.",
+  "Новая машина":"New machine",
+  "Назад":"Back",
+  "Настройки машины сохраняются отдельно. Записи на подключённые виртуальные диски сохраняются автоматически.":"Machine settings are saved separately. Changes to attached virtual disks are saved automatically.",
+  "Оперативная память гостевой ОС":"Guest OS memory",
+  "Без образа — загрузка с диска":"No image — boot from disk",
+  "Дополнительный диск (HDB)":"Secondary disk (HDB)",
+  "Без диска":"No disk",
+  "Нельзя подключить один диск дважды.":"The same disk cannot be attached more than once.",
+  "Один диск нельзя подключить дважды.":"The same disk cannot be attached more than once.",
+  "Выбранный образ ОС недоступен.":"The selected OS image is unavailable.",
+  "Выбранный ISO не найден.":"The selected ISO was not found.",
+  "Уже открыто другое подтверждение.":"Another confirmation is already open.",
+  "Удалить машину?":"Delete machine?",
+  "Машина «":"Machine “",
+  "» будет удалена. Её виртуальные диски останутся в разделе «Мои диски».":"” will be deleted. Its virtual disks will remain in “My disks”.",
+  "Удалить виртуальный диск?":"Delete virtual disk?",
+  "Диск «":"Disk “",
+  "» и все его данные будут удалены без возможности восстановления.":"” and all its data will be permanently deleted.",
+  " Он будет отключён от машин: ":" It will be detached from machines: ",
+  "Удалить ISO?":"Delete ISO?",
+  "Сохранённый установочный образ будет удалён из хранилища.":"The saved installation image will be removed from storage.",
+  "Экспорт диска":"Export disk",
+  "Для экспорта будет создана временная копия размером ":"A temporary copy of ",
+  " в памяти браузера.":" will be created in browser memory.",
+  "Потеряна блокировка виртуального диска; машина остановлена.":"Virtual disk lock lost; the machine has stopped.",
+  "Сначала дождитесь полной остановки уже запущенной машины.":"Wait for the currently running machine to stop first.",
+  "Сначала выберите IMG или ISO.":"Select an IMG or ISO file first.",
+  "Поддерживаются только IMG/IMA/DSK/BIN и ISO.":"Only IMG/IMA/DSK/BIN and ISO files are supported.",
+  "ISO сохранён: ":"ISO saved: ",
+  "Импорт диска: ":"Disk import: ",
+  "Диск импортирован: ":"Disk imported: ",
+  " занято из ":" used of ",
+  "Ошибка записи виртуального диска: ":"Virtual disk write error: ",
+  "Ошибка записи загрузочной дискеты: ":"Boot floppy write error: ",
+  "Загрузка компонентов ":"Loading components ",
+  "Кеш блоков: ":"Block cache: ",
+  "Текущие временные буферы: ":"Current temporary buffers: ",
+  "; максимум с запуска: ":"; peak since startup: ",
+  "чтение ":"read ",
+  "записано и сохранено ":"written and saved ",
+  "Диск":"Disk",
+  "Флоппи":"Floppy",
+  "Память виртуальных дисков":"Virtual disk diagnostics",
+  "Загрузка ISO ":"Loading ISO ",
+  " в IndexedDB…":" into IndexedDB…",
+  "Импортируется образ ":"Importing image ",
+  " в новый динамический диск…":" into a new dynamic disk…",
+  "Импорт ":"Import ",
+  "Загрузка ISO: ":"ISO download: ",
+  "Импортируется загрузочная дискета ":"Importing boot floppy ",
+  "Импорт дискеты: ":"Floppy import: ",
+  "Удалить":"Delete",
+  "Это приложение":"This application",
+  "На весь экран":"Fullscreen",
+  "Загрузка компонентов v86 или загрузочный образ":"v86 components or boot image",
+  "Загрузка компонентов виртуальной машины":"Loading virtual machine components",
+  "Виртуальная машина":"Virtual machine",
+  "Установочный носитель":"Installation media",
+  "Виртуальных машин пока нет.":"No virtual machines yet.",
+  "Виртуальных дисков":"Virtual disks",
+  "Сброс настроек":"Reset settings",
+  "Выполнить":"Run",
+  "ЛКМ":"LMB",
+  "ПКМ":"RMB",
+  "мышь":"mouse",
+  "кнопка":"button",
+  "Удерживай":"Hold",
+  "Загрузка":"Loading",
+  "Запуск":"Starting",
+  "Основной диск":"Primary disk",
+  "Пустой динамический диск создан; данные не выделялись.":"Empty dynamic disk created; no data space has been allocated.",
+  "Динамический диск создан с основным MBR-разделом. При установке ОС выберите его и отформатируйте.":"Dynamic disk created with a primary MBR partition. Select and format it when installing an OS.",
+  "Удалить виртуальный диск":"Delete virtual disk",
+  "Высота":"Height",
+  "Ширина":"Width",
+  "Например, FreeDOS":"For example, FreeDOS",
+  "Загрузочный образ":"Boot image",
+  "Основной диск (HDD)":"Primary disk (HDD)",
+  "Создать машину":"Create machine",
+  "ISO подключается как CD/DVD, а виртуальный HDD остаётся отдельным диском. Возможность установки зависит от самой ОС и загрузочного ISO.":"An ISO is attached as a CD/DVD while the virtual HDD remains a separate disk. Installation depends on the OS and bootable ISO.",
+  "Новый диск":"New disk",
+  "Динамический диск хранит только записанные блоки. Логический предел — до 64 ГБ.":"A dynamic disk stores only written blocks. The logical limit is 64 GB.",
+  "Название диска":"Disk name",
+  "Например, Linux Disk":"For example, Linux Disk",
+  "Максимальный логический размер":"Maximum logical size",
+  "Создать основной MBR-раздел на весь диск":"Create a primary MBR partition using the entire disk",
+  "Создать пустой диск":"Create empty disk",
+  "Импорт образа":"Import image",
+  "IMG/raw импортируется в динамический HDD. ISO сохраняется как установочный CD/DVD.":"IMG/raw files are imported as dynamic HDDs. ISOs are saved as installation CD/DVD media.",
+  "Файл IMG или ISO":"IMG or ISO file",
+  "Импортировать":"Import",
+  "Без загрузочного образа":"No boot image",
+  "образ HDD":"HDD image",
+  "образ дискеты":"floppy image",
+  "импортированный ISO":"imported ISO",
+  "CD/DVD или дискета":"CD/DVD or floppy disk",
+  "Дискета (FDD)":"Floppy disk (FDD)",
+  "Удалить ISO":"Delete ISO",
+  "Запуск ":"Start ",
+  "Загрузка…":"Loading…",
+  "Не удалось загрузить образ. Проверь формат файла и совместимость с v86.":"Could not load the image. Check the file format and v86 compatibility.",
+  "Не удалось загрузить компоненты v86 или загрузочный образ.":"Could not load v86 components or the boot image.",
+  "Компоненты виртуальной машины":"Virtual machine components",
+  "Полноэкранный режим недоступен в этом браузере.":"Fullscreen mode is not available in this browser.",
+  "Клавиатура":"Keyboard",
+  "Нажми, чтобы зажать; нажми ещё раз, чтобы отпустить. Перемещай курсор касанием экрана.":"Tap to hold; tap again to release. Move the cursor by touching the screen.",
+  "Виртуальные диски":"Virtual disks",
+  "Настроить новую виртуальную машину":"Set up a new virtual machine",
+  "Версия ":"Version ",
+  "образ диска":"disk image",
+  "Экспортировать":"Export",
+  "Переименовать":"Rename",
+  "Скачать":"Download",
+  "Сохранить":"Save",
+  "Сохранить машину":"Save machine",
+  "Переименовать диск":"Rename disk",
+  "Удалить диск":"Delete disk",
+  "Экспортировать диск":"Export disk",
+  "Изменения сохранены.":"Changes saved.",
+  "Диск переименован.":"Disk renamed.",
+  "Диск удалён.":"Disk deleted.",
+  "Этот образ служит загрузочным диском. Сначала выберите другой образ загрузки.":"This image is the boot disk. Select another boot image first.",
+  "Динамический диск":"Dynamic disk",
+  "дискета":"floppy disk",
+  "свободно":"free",
+  "занято":"used"
+};
+const ENGLISH_TRANSLATIONS = new Map(Object.entries(TRANSLATIONS).map(([ru,en])=>[en,ru]));
+function readLanguage(){
+  try{ return localStorage.getItem(LANGUAGE_KEY)==="en"?"en":"ru"; }
+  catch(error){ console.warn("Could not read the app language preference.",error); return "ru"; }
+}
+let language=readLanguage();
+let activeTranslations=[];
+function updateTranslationPairs(){
+  activeTranslations=(language==="en"?Object.entries(TRANSLATIONS):[...ENGLISH_TRANSLATIONS.entries()])
+    .sort((a,b)=>b[0].length-a[0].length);
+}
+updateTranslationPairs();
+function translateValue(value){
+  let translated=value;
+  for(const [source,target] of activeTranslations){
+    if(source) translated=translated.split(source).join(target);
+  }
+  return translated;
+}
+function applyLanguage(){
+  document.documentElement.lang=language;
+  const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
+  while(walker.nextNode()){
+    const node=walker.currentNode;
+    if(node.parentElement?.closest("script,style")) continue;
+    node.nodeValue=translateValue(node.nodeValue||"");
+  }
+  document.querySelectorAll("[placeholder],[aria-label],[title]").forEach(element=>{
+    for(const attribute of ["placeholder","aria-label","title"]){
+      if(element.hasAttribute(attribute)) element.setAttribute(attribute,translateValue(element.getAttribute(attribute)));
+    }
+  });
+  $("setLanguage").value=language;
+}
+const languageObserver=new MutationObserver(records=>{
+  if(records.some(record=>record.addedNodes.length)) applyLanguage();
+});
+languageObserver.observe(document.body,{childList:true,subtree:true});
+$("setLanguage").value=language;
+applyLanguage();
+$("setLanguage").addEventListener("change",event=>{
+  language=event.target.value==="en"?"en":"ru";
+  updateTranslationPairs();
+  try{ localStorage.setItem(LANGUAGE_KEY,language); }
+  catch(error){ console.warn("Could not save the app language preference.",error); }
+  applyLanguage();
+});
 
 if (tg){
   tg.ready(); tg.expand();
@@ -202,10 +451,10 @@ if (tg){
   try{ tg.disableVerticalSwipes(); }catch{}
 }
 
-const userId = tg?.initDataUnsafe?.user?.id;
-const refLink = id => `https://t.me/${BOT}/${APP}?startapp=${id}` + (userId ? `-${userId}` : "");
+const refLink = id => `https://t.me/${BOT}/${APP}?startapp=${id}`;
 function share(os){
-  const url = `https://t.me/share/url?url=${encodeURIComponent(refLink(os.id))}&text=${encodeURIComponent(`${os.name} прямо в Telegram`)}`;
+  const caption=language==="en"?`${os.name} right in Telegram`:`${os.name} прямо в Telegram`;
+  const url = `https://t.me/share/url?url=${encodeURIComponent(refLink(os.id))}&text=${encodeURIComponent(caption)}`;
   tg ? tg.openTelegramLink(url) : window.open(url, "_blank");
 }
 
@@ -215,7 +464,10 @@ function renderList(filter=""){
   const cats = [...new Set(OS.map(o=>o.cat))];
   let html = "";
   for (const c of cats){
-    const items = OS.filter(o=>o.cat===c && (o.name+o.desc).toLowerCase().includes(f));
+    const items = OS.filter(o=>{
+      const searchable=language==="en"?translateValue(`${o.name} ${o.cat} ${o.desc}`):`${o.name} ${o.cat} ${o.desc}`;
+      return o.cat===c && searchable.toLowerCase().includes(f);
+    });
     if(!items.length) continue;
     html += `<div class="hdr">${c}</div><div class="group">` + items.map(o=>`
       <div class="cell" data-id="${o.id}">
@@ -718,7 +970,7 @@ function openSheet(os){
   if (inTG){
     $("sGo").style.display = "none";
     mainHandler = ()=>launch(os);
-    tg.MainButton.setText(`Запустить ${os.name}`).show().onClick(mainHandler);
+    tg.MainButton.setText(`${language==="en"?"Start":"Запустить"} ${os.name}`).show().onClick(mainHandler);
   } else $("sGo").style.display = "block";
 }
 function closeSheet(){
@@ -1221,10 +1473,9 @@ $("kb").addEventListener("keydown", e=>{
 renderList();
 const sp = tg?.initDataUnsafe?.start_param || location.hash.slice(1) || new URLSearchParams(location.search).get("os");
 if (sp){
-  const [id, ref] = sp.split("-");
-  const os = OS.find(o=>o.id===id);
+  const osId=sp.split("-")[0];
+  const os = OS.find(o=>o.id===osId);
   if (os){
-    // if(ref) fetch("/api/ref",{method:"POST",body:JSON.stringify({ref,initData:tg.initData})}); // учёт рефералов на своём бэкенде
     cur = os; openSheet(os);
   }
 }

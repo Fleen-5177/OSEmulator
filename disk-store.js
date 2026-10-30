@@ -1,11 +1,5 @@
-/*
- * Хранилище виртуальных дисков/ISO на IndexedDB (sparse-блоки).
- * API совместим с прежним: window.OSEmuStorage = { DiskStore, IndexedDBDiskDevice, IndexedDBMediaDevice, constants }.
- *
- * Главное отличие: устройство держит блоки в памяти (write-back кэш), все операции
- * чтения/записи идут строго по порядку через одну очередь, а на диск в IndexedDB
- * блоки сбрасываются пачками в фоне (flush). При остановке ВМ вызывайте `await device.close()`.
- */
+// Хранилище виртуальных дисков/ISO на IndexedDB (sparse-блоки).
+
 (() => {
   "use strict";
 
@@ -14,14 +8,14 @@
   const KB = 1024, MB = 1024 * KB, GB = 1024 * MB;
 
   const BLOCK_SIZE = 64 * KB;          // размер блока по умолчанию (у существующих дисков берётся из записи)
-  const CACHE_LIMIT = 16 * MB;         // лимит «чистого» кэша на устройство
+  const CACHE_LIMIT = 16 * MB;         // лимит кэша на устройство
   const MAX_IO_SIZE = 64 * MB;         // защита от абсурдных запросов
   const MAX_IMAGE_BYTES = 64 * GB;
-  const LOCK_TIMEOUT = 120_000;        // фоновые вкладки троттлят таймеры, 30 с было слишком мало
+  const LOCK_TIMEOUT = 120_000;        
 
-  const FLUSH_DELAY = 250;             // через сколько мс после записи сбрасываем блоки в IndexedDB
-  const FLUSH_EAGER_BYTES = 8 * MB;    // если накопилось столько — сбрасываем сразу
-  const DIRTY_HIGH_WATER = 48 * MB;    // выше этого write() ждёт сброса (backpressure)
+  const FLUSH_DELAY = 250;             // задержка сброса в IndexedDB
+  const FLUSH_EAGER_BYTES = 8 * MB;    // лимит буфера 
+  const DIRTY_HIGH_WATER = 48 * MB;    // 
   const COMMIT_BATCH_BYTES = 8 * MB;   // размер одной транзакции записи
   const IMPORT_BATCH_BYTES = 8 * MB;
   const RETRY_DELAY = 3000, MAX_RETRIES = 5;
@@ -121,7 +115,6 @@
     return runs;
   }
 
-  // Копирует source в блоки диска. Блоки достаёт/создаёт getBlock, результат отдаёт onBlock.
   function patchRange(offset, source, blockSize, diskSize, getBlock, onBlock) {
     const end = offset + source.byteLength;
     const last = Math.floor((end - 1) / blockSize);
@@ -147,7 +140,7 @@
     };
   }
 
-  // Режет поток на блоки фиксированного размера и отдаёт их в sink без O(n²)-склейки.
+  // режет поток на блоки фиксированного размера и отдаёт их в синк
   async function consumeStream(reader, blockSize, align, limit, sink, onProgress) {
     let current = new Uint8Array(blockSize), fill = 0, index = 0, total = 0;
     while (true) {
@@ -186,7 +179,7 @@
     };
     return {
       async push(index, data) {
-        if (isZero(data)) return false; // sparse: нулевые блоки не храним
+        if (isZero(data)) return false; // sparse
         batch.push([index, data]); bytes += data.byteLength;
         if (bytes >= IMPORT_BATCH_BYTES) await flush();
         return true;
@@ -216,7 +209,7 @@
         const reset = () => { if (databasePromise) databasePromise = null; };
         db.onversionchange = () => { db.close(); reset(); };
         db.onclose = reset;
-        navigator.storage?.persist?.().catch(() => {}); // просим не вытеснять диски при нехватке места
+        navigator.storage?.persist?.().catch(() => {}); 
         resolve(db);
       };
       request.onerror = () => reject(request.error || new Error("Could not open the virtual disk database"));
@@ -666,7 +659,7 @@
       return () => { d.temporaryBytes -= length; };
     }
 
-    // Все операции выполняются строго по очереди: чтение никогда не обгонит запись.
+    // очередтьп записи
     run(task) {
       this.pending++;
       const result = this.queue.then(task);
@@ -781,7 +774,6 @@
 
     /* --- запись --- */
 
-    // Блоки, которые частично перезаписываются и которых нет в кэше (их надо сначала прочитать).
     blocksToLoad(offset, length) {
       const end = offset + length, need = [];
       for (let index = Math.floor(offset / this.blockSize), last = Math.floor((end - 1) / this.blockSize); index <= last; index++) {
@@ -821,7 +813,6 @@
 
       const overloaded = this.dirty.size * this.blockSize >= DIRTY_HIGH_WATER;
       if (!this.pending && !overloaded && !this.blocksToLoad(offset, source.byteLength).length) {
-        // быстрый путь: всё уже в памяти, пишем синхронно
         this.applyWrite(offset, source);
         this.diagnostics.writtenBytes += source.byteLength;
         callback();
